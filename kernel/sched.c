@@ -141,6 +141,14 @@ void schedule(void)
 
 /* this is the scheduler proper: */
 
+	/*
+	 * 根据进程的counter 选出下一个需要运行的进程.
+	 * 四个局部变量分别为:
+	 * i	进程结构体数组下标
+	 * next	选择出来的下一个需要运行的进程下标
+	 * c	当前最到的counter值
+	 * p	进程指针，用于遍历进程数组
+	 */
 	while (1) {
 		c = -1;
 		next = 0;
@@ -153,6 +161,7 @@ void schedule(void)
 				c = (*p)->counter, next = i;
 		}
 		if (c) break;
+		/* 重新计算进程的counter */
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +

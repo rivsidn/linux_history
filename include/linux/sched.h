@@ -123,6 +123,10 @@ struct task_struct {
 	struct task_struct	*p_pptr, *p_cptr, *p_ysptr, *p_osptr;
 	unsigned short uid,euid,suid;
 	unsigned short gid,egid,sgid;
+	/*
+	 * 超时时间，设置的时候都是 = jiffies + timeout; 通过与当前jiffies
+	 * 比较大小来判断超时时间。
+	 */
 	unsigned long timeout,alarm;
 	long utime,stime,cutime,cstime,start_time;
 	struct rlimit rlim[RLIM_NLIMITS]; 
