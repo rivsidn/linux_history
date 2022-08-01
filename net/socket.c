@@ -13,6 +13,7 @@
 
 extern int sys_close(int fd);
 
+/* 协议操作函数 */
 extern struct proto_ops unix_proto_ops;
 
 static struct {
@@ -24,6 +25,7 @@ static struct {
 };
 #define NPROTO (sizeof(proto_table) / sizeof(proto_table[0]))
 
+/* 获取协议名 */
 static char *
 family_name(int family)
 {
@@ -64,6 +66,8 @@ static struct file_operations socket_file_ops = {
 
 static struct socket sockets[NSOCKETS];
 #define last_socket (sockets + NSOCKETS - 1)
+
+/* 进程结构体指针 */
 static struct task_struct *socket_wait_free = NULL;
 
 /*
@@ -122,6 +126,11 @@ socki_lookup(struct inode *inode)
 	return NULL;
 }
 
+/*
+ * 通过fd查找socket:
+ * 1.通过fd获取到file结构体
+ * 2.通过file->inode 找到对应的socket
+ */
 static inline struct socket *
 sockfd_lookup(int fd, struct file **pfile)
 {
@@ -141,7 +150,7 @@ sock_alloc(int wait)
 
 	while (1) {
 		cli();
-		for (sock = sockets; sock <= last_socket; ++sock)
+		for (sock = sockets; sock <= last_socket; ++sock) {
 			if (sock->state == SS_FREE) {
 				sock->state = SS_UNCONNECTED;
 				sti();
@@ -159,6 +168,9 @@ sock_alloc(int wait)
 				 * the close system call will iput this inode
 				 * for us.
 				 */
+				/*
+				 * 获取inode{} 结构体
+				 */
 				if (!(SOCK_INODE(sock) = get_empty_inode())) {
 					printk("sock_alloc: no more inodes\n");
 					sock->state = SS_FREE;
@@ -170,6 +182,7 @@ sock_alloc(int wait)
 				       sock, SOCK_INODE(sock));
 				return sock;
 			}
+		}
 		sti();
 		if (!wait)
 			return NULL;

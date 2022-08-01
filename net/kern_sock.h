@@ -1,6 +1,7 @@
 #ifndef _KERN_SOCK_H
 #define _KERN_SOCK_H
 
+/* 支持的socket个数 */
 #define NSOCKETS 128			/* should be dynamic, later... */
 
 typedef enum {
