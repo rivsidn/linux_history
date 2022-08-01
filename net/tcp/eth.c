@@ -49,72 +49,81 @@
 void
 print_eth (struct enet_header *eth)
 {
-  int i;
-  PRINTK ("ether source addr: ");
-  for (i =0 ; i < ETHER_ADDR_LEN; i++)
-    {
-      PRINTK ("0x%2X ",eth->saddr[i]);
-    }
-  PRINTK ("\n");
+	int i;
+	PRINTK ("ether source addr: ");
+	for (i =0 ; i < ETHER_ADDR_LEN; i++)
+	{
+		PRINTK ("0x%2X ",eth->saddr[i]);
+	}
+	PRINTK ("\n");
 
-  PRINTK ("ether dest addr: ");
-  for (i =0 ; i < ETHER_ADDR_LEN; i++)
-    {
-      PRINTK ("0x%2X ",eth->daddr[i]);
-    }
-  PRINTK ("\n");
-  PRINTK ("ethertype = %X\n",net16(eth->type));
+	PRINTK ("ether dest addr: ");
+	for (i =0 ; i < ETHER_ADDR_LEN; i++)
+	{
+		PRINTK ("0x%2X ",eth->daddr[i]);
+	}
+	PRINTK ("\n");
+	PRINTK ("ethertype = %X\n",net16(eth->type));
 }
 
+/*
+ * 填充以太头
+ */
 int
 eth_hard_header (unsigned char *buff, struct device *dev,
 		 unsigned short type, unsigned long daddr,
 		 unsigned long saddr, unsigned len)
 {
-  struct enet_header *eth;
-  eth = (struct enet_header *)buff;
-  eth->type = net16(type);
-  memcpy (eth->saddr, dev->dev_addr, dev->addr_len);
-  if (daddr == 0)
-    {
-      memset (eth->daddr, 0xff, dev->addr_len);
-      return (14);
-    }
-  if (!arp_find (eth->daddr, daddr, dev, saddr))
-    {
-      return (14);
-    }
-  else
-    {
-      *(unsigned long *)eth->saddr = saddr;
-       return (-14);
-    }
+	struct enet_header *eth;
+	eth = (struct enet_header *)buff;
+
+	/* 设置三层协议类型 */
+	eth->type = net16(type);
+	/* 设置源mac地址 */
+	memcpy (eth->saddr, dev->dev_addr, dev->addr_len);
+	if (daddr == 0)
+	{
+		memset (eth->daddr, 0xff, dev->addr_len);
+		return (14);
+	}
+	if (!arp_find (eth->daddr, daddr, dev, saddr))
+	{
+		return (14);
+	}
+	else
+	{
+		*(unsigned long *)eth->saddr = saddr;
+		return (-14);
+	}
 }
 
+/* 通过查询arp表，修改二层头 */
 int
 eth_rebuild_header (void *buff, struct device *dev)
 {
-  struct enet_header *eth;
-  eth = buff;
-  if (arp_find(eth->daddr, *(unsigned long*)eth->daddr, dev, 
-		   *(unsigned long *)eth->saddr))
-    return (1);
-  memcpy (eth->saddr, dev->dev_addr, dev->addr_len);
-  return (0);
+	struct enet_header *eth;
+	eth = buff;
+	if (arp_find(eth->daddr, *(unsigned long*)eth->daddr, dev, 
+		     *(unsigned long *)eth->saddr))
+		return (1);
+	memcpy (eth->saddr, dev->dev_addr, dev->addr_len);
+	return (0);
 }
 
 void
 eth_add_arp (unsigned long addr, struct sk_buff *skb, struct device *dev)
 {
-   struct enet_header *eh;
-   eh = (struct enet_header *)(skb + 1);
-   arp_add (addr, eh->saddr, dev);
+	struct enet_header *eh;
+	eh = (struct enet_header *)(skb + 1);
+	arp_add (addr, eh->saddr, dev);
 }
 
+/* 返回三层协议号 */
 unsigned short
 eth_type_trans (struct sk_buff *skb, struct device *dev)
 {
-   struct enet_header *eh;
-   eh = (struct enet_header *)(skb + 1);
-   return (eh->type);
+	struct enet_header *eh;
+	/* sk_buff{} 后跟着真正的报文数据 */
+	eh = (struct enet_header *)(skb + 1);
+	return (eh->type);
 }

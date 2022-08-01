@@ -128,28 +128,28 @@ struct proto
 
 struct sk_buff
 {
-  struct sk_buff *next;
-  struct sk_buff *prev;
-  struct sk_buff *link3;
-  volatile struct sock *sk;
-  unsigned long when; /* used to compute rtt's. */
-  struct device *dev;
-  void *mem_addr;
-  union
-    {
-       struct tcp_header *th;
-       struct enet_header *eth;
-       struct ip_header *iph;
-       struct udp_header *uh;
-       struct arp *arp;
-       unsigned char *raw;
-       unsigned long seq;
-    } h;
-  unsigned long mem_len;
-  unsigned long len;
-  unsigned long saddr;
-  unsigned long daddr;
-  unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
+	struct sk_buff *next;
+	struct sk_buff *prev;
+	struct sk_buff *link3;
+	volatile struct sock *sk;
+	unsigned long when; /* used to compute rtt's. */
+	struct device *dev;
+	void *mem_addr;
+	union
+	{
+		struct tcp_header *th;
+		struct enet_header *eth;
+		struct ip_header *iph;
+		struct udp_header *uh;
+		struct arp *arp;
+		unsigned char *raw;
+		unsigned long seq;
+	} h;
+	unsigned long mem_len;
+	unsigned long len;
+	unsigned long saddr;
+	unsigned long daddr;
+	unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
 };
 
 #define PROT_SOCK 1024

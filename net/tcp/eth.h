@@ -47,11 +47,12 @@
 
 #define NET16(x) (((x&0xff)<<8)|((x>>8)&0xff))
 
+/* 以太网头部 */
 struct enet_header
 {
-  unsigned char daddr[ETHER_ADDR_LEN];
-  unsigned char saddr[ETHER_ADDR_LEN];
-  unsigned short type;
+	unsigned char daddr[ETHER_ADDR_LEN];
+	unsigned char saddr[ETHER_ADDR_LEN];
+	unsigned short type;
 };
 
 #define ETHER_HEADER sizeof(struct enet_header)

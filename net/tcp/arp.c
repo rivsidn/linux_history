@@ -404,55 +404,60 @@ int
 arp_find(unsigned char *haddr, unsigned long paddr, struct device *dev,
 	   unsigned long saddr)
 {
-  struct arp_table *apt;
-  PRINTK ("arp_find(haddr=%X, paddr=%X, dev=%X, saddr=%X)\n",
-	  haddr, paddr, dev, saddr);
-  if (my_ip_addr (paddr))
-    {
-      memcpy (haddr, dev->dev_addr, dev->addr_len);
-      return (0);
-    }
-  apt = arp_lookup (paddr);
-  if (apt != NULL)
-    {
-       /* make sure it's not too old. If it is too old, we will
-	  just pretend we did not find it, and then arp_snd
-	  will verify the address for us. */
-       if (!before (apt->last_used, timer_seq+ARP_TIMEOUT) &&
-	   apt->hlen != 0)
-	 {
-	    apt->last_used=timer_seq;
-	    memcpy (haddr, apt->hard, dev->addr_len);
-	    return (0);
-	 }
-    }
+	struct arp_table *apt;
+	PRINTK ("arp_find(haddr=%X, paddr=%X, dev=%X, saddr=%X)\n",
+			haddr, paddr, dev, saddr);
+	if (my_ip_addr (paddr))
+	{
+		memcpy (haddr, dev->dev_addr, dev->addr_len);
+		return (0);
+	}
+	apt = arp_lookup (paddr);
+	if (apt != NULL)
+	{
+		/* make sure it's not too old. If it is too old, we will
+		   just pretend we did not find it, and then arp_snd
+		   will verify the address for us. */
+		if (!before (apt->last_used, timer_seq+ARP_TIMEOUT) &&
+				apt->hlen != 0)
+		{
+			apt->last_used=timer_seq;
+			memcpy (haddr, apt->hard, dev->addr_len);
+			return (0);
+		}
+	}
 
-  /* if we didn't find an entry, we will try to 
-     send an arp packet. */
-  if (apt == NULL || after (timer_seq, apt->last_used+ARP_RES_TIME))
-    arp_snd(paddr,dev,saddr);
+	/* if we didn't find an entry, we will try to 
+	   send an arp packet. */
+	if (apt == NULL || after (timer_seq, apt->last_used+ARP_RES_TIME))
+		arp_snd(paddr,dev,saddr);
 
-  /* this assume haddr are atleast 4 bytes.
-     If this isn't true we can use a lookup
-     table, one for every dev. */
-  *(unsigned long *)haddr = paddr;
-  return (1);
+	/* this assume haddr are atleast 4 bytes.
+	   If this isn't true we can use a lookup
+	   table, one for every dev. */
+	*(unsigned long *)haddr = paddr;
+	return (1);
 }
 
 
+/*
+ * addr		对端IP地址
+ * haddr	对端MAC地址
+ * dev		本地设备
+ */
 void
 arp_add (unsigned long addr, unsigned char *haddr, struct device *dev)
 {
-   struct arp_table *apt;
-   /* first see if the address is already in the table. */
-   apt = arp_lookup (addr);
-   if (apt != NULL)
-     {
-	apt->last_used = timer_seq;
-	memcpy (apt->hard, haddr , dev->addr_len);
-	return;
-     }
-   create_arp (addr, haddr, dev->addr_len);
+	struct arp_table *apt;
+	/* first see if the address is already in the table. */
+	apt = arp_lookup (addr);
+	if (apt != NULL)
+	{
+		apt->last_used = timer_seq;
+		memcpy (apt->hard, haddr , dev->addr_len);
+		return;
+	}
+	create_arp (addr, haddr, dev->addr_len);
 }
 
 void

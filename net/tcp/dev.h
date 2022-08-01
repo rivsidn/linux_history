@@ -29,55 +29,64 @@
 
 struct device
 {
-  char *name;
-  unsigned long rmem_end;
-  unsigned long rmem_start;
-  unsigned long mem_end;
-  unsigned long mem_start;
-  unsigned short base_addr;
-  unsigned char irq;
-  unsigned char start:1,
-                tbusy:1,
-                loopback:1,
-                interrupt:1,
-                up:1;
-  struct device *next;
-  void (*init)(struct device *dev);
-  unsigned long trans_start;
-  struct sk_buff *buffs[DEV_NUMBUFFS];
-  struct sk_buff *backlog;
-  int  (*open)(struct device *dev);
-  int  (*stop)(struct device *dev);
-  int (*hard_start_xmit) (struct sk_buff *skb, struct device *dev);
-  int (*hard_header) (unsigned char *buff, struct device *dev,
-		      unsigned short type, unsigned long daddr,
-		      unsigned long saddr, unsigned len);
-  void (*add_arp) (unsigned long addr, struct sk_buff *skb,
-		   struct device *dev);
-  void (*queue_xmit)(struct sk_buff *skb, struct device *dev, int pri);
-  int (*rebuild_header)(void *eth, struct device *dev);
-  unsigned short (*type_trans) (struct sk_buff *skb, struct device *dev);
-  void (*send_packet)(struct sk_buff *skb, struct device *dev);
-  void *private;
+	char *name;
+	unsigned long rmem_end;
+	unsigned long rmem_start;
+	unsigned long mem_end;
+	unsigned long mem_start;
+	unsigned short base_addr;
+	unsigned char irq;
+	unsigned char start:1,
+		      tbusy:1,
+		      loopback:1,
+		      interrupt:1,
+		      up:1;
+	struct device *next;
+	void (*init)(struct device *dev);
+	unsigned long trans_start;
+	struct sk_buff *buffs[DEV_NUMBUFFS];
+	struct sk_buff *backlog;
+	int  (*open)(struct device *dev);
+	int  (*stop)(struct device *dev);
+	/* 报文发送，无缓冲队列 */
+	int (*hard_start_xmit) (struct sk_buff *skb, struct device *dev);
+	/* 构建二层头 */
+	int (*hard_header) (unsigned char *buff, struct device *dev,
+			unsigned short type, unsigned long daddr,
+			unsigned long saddr, unsigned len);
+	void (*add_arp) (unsigned long addr, struct sk_buff *skb,
+			struct device *dev);
+	/* 报文发送，有缓冲队列 */
+	void (*queue_xmit)(struct sk_buff *skb, struct device *dev, int pri);
+	int (*rebuild_header)(void *eth, struct device *dev);
+	/* 获取三层协议号 */
+	unsigned short (*type_trans) (struct sk_buff *skb, struct device *dev);
+	void (*send_packet)(struct sk_buff *skb, struct device *dev);
+	void *private;
 
-  unsigned short type;
-  unsigned short hard_header_len;
-  unsigned short mtu;
-  unsigned char broadcast[MAX_ADDR_LEN];
-  unsigned char dev_addr[MAX_ADDR_LEN];
-  unsigned char addr_len;
+	/* 设备类型: ETHER_TYPE */
+	unsigned short type;
+	/* 二层头长度 */
+	unsigned short hard_header_len;
+	unsigned short mtu;
+	/* 二层广播地址 */
+	unsigned char broadcast[MAX_ADDR_LEN];
+	/* 设备二层地址 */
+	unsigned char dev_addr[MAX_ADDR_LEN];
+	/* 二层地址长度 */
+	unsigned char addr_len;
 };
 
 extern struct device *dev_base;
 
 struct packet_type
 {
-   unsigned short type; /* This is really NET16(ether_type) other devices
-			   will have to translate appropriately. */
-   unsigned short copy:1;
-   int (*func) (struct sk_buff *, struct device *, struct packet_type *);
-   void *data;
-   struct packet_type *next;
+	unsigned short type; /* This is really NET16(ether_type) other devices
+				will have to translate appropriately. */
+	unsigned short copy:1;
+	int (*func) (struct sk_buff *, struct device *, struct packet_type *);
+	void *data;
+	struct packet_type *next;
 };
 
 /* used by dev_rint */
