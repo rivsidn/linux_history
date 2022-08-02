@@ -34,6 +34,7 @@ struct device
 	unsigned long rmem_start;
 	unsigned long mem_end;
 	unsigned long mem_start;
+	/* 寄存器基地址 */
 	unsigned short base_addr;
 	unsigned char irq;
 	unsigned char start:1,
@@ -43,6 +44,7 @@ struct device
 		      up:1;
 	struct device *next;
 	void (*init)(struct device *dev);
+	/* 时间戳 */
 	unsigned long trans_start;
 	struct sk_buff *buffs[DEV_NUMBUFFS];
 	struct sk_buff *backlog;
@@ -58,6 +60,7 @@ struct device
 			struct device *dev);
 	/* 报文发送，有缓冲队列 */
 	void (*queue_xmit)(struct sk_buff *skb, struct device *dev, int pri);
+	/* 重新构建二层头 TODO: 这里跟 hard_header()的差异 */
 	int (*rebuild_header)(void *eth, struct device *dev);
 	/* 获取三层协议号 */
 	unsigned short (*type_trans) (struct sk_buff *skb, struct device *dev);

@@ -13,7 +13,9 @@ __asm__ __volatile__ ("movl %%esp,%%eax\n\t" \
 	"mov %%ax,%%gs" \
 	:::"ax")
 
+/* 打开中断 */
 #define sti() __asm__ __volatile__ ("sti"::)
+/* 关闭中断 */
 #define cli() __asm__ __volatile__ ("cli"::)
 #define nop() __asm__ __volatile__ ("nop"::)
 

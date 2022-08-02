@@ -467,24 +467,28 @@ arp_add_broad (unsigned long addr, struct device *dev)
 }
 
 
+/*
+ * 无法构建二层头的包文，需要先将包文发送arp_q 队列中，等待能够获取到
+ * arp 之后才能对外发送.
+ */
 void
 arp_queue(struct sk_buff *skb)
 {
-   cli();
-   if (arp_q == NULL)
-     {
-	arp_q = skb;
-	skb->next = skb;
-	skb->prev = skb;
-     }
-   else
-    {
-      skb->next = arp_q;
-      skb->prev = arp_q->prev;
-      skb->next->prev = skb;
-      skb->prev->next = skb;
-    }
-  sti();
-
+	/* 将包文发送缓冲队列中 */
+	cli();
+	if (arp_q == NULL)
+	{
+		arp_q = skb;
+		skb->next = skb;
+		skb->prev = skb;
+	}
+	else
+	{
+		skb->next = arp_q;
+		skb->prev = arp_q->prev;
+		skb->next->prev = skb;
+		skb->prev->next = skb;
+	}
+	sti();
 }
 

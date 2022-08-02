@@ -182,6 +182,9 @@ dev_queue_xmit (struct sk_buff *skb, struct device *dev, int pri)
 
 /*
  * 报文接收函数
+ * 将buff 中的内容copy 到skb 中，进一步处理。
+ * buff 不为空表示此时接收到了新的数据；buff 为空表示此时没有接收到
+ * 新数据，用于处理backlog 中数据。
  */
 int
 dev_rint(unsigned char *buff, unsigned long len, int flags,
@@ -197,9 +200,9 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 	/* try to grab some memory. */
 	if (len > 0 && buff != NULL)
 	{
-		skb = malloc (sizeof (*skb) + len);
-		skb->mem_len = sizeof (*skb) + len;
-		skb->mem_addr = skb;
+		skb = malloc (sizeof (*skb) + len);	/* 申请内存 */
+		skb->mem_len = sizeof (*skb) + len;	/* 内存长度 */
+		skb->mem_addr = skb;			/* 内存地址 */
 	}
 
 	/* firs we copy the packet into a buffer, and save it for later. */
@@ -210,6 +213,10 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 			to = (unsigned char *)(skb+1);
 			while (len > 0)
 			{
+				/*
+				 * 此时的buff 位于dev->rmem_start、dev->rmem_end 的环形
+				 * 缓冲区内，将这部分内容依次copy 到新申请的内存中.
+				 */
 				amount = min (len, (unsigned long) dev->rmem_end -
 						(unsigned long) buff);
 				memcpy (to, buff, amount);
@@ -222,6 +229,7 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		}
 		else
 		{
+			/* IN_SKBUFF 标识位表示传递过来的是一个skb_buff{} 结构体 */
 			free_s (skb->mem_addr, skb->mem_len);
 			skb = (struct sk_buff *)buff;
 		}
@@ -230,9 +238,10 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		skb->dev = dev;
 		skb->sk = NULL;
 
+		/* 将报文加入到一个双向环形链表中 */
 		/* now add it to the dev backlog. */
 		cli();
-		if (dev-> backlog == NULL)
+		if (dev->backlog == NULL)
 		{
 			skb->prev = skb;
 			skb->next = skb;
@@ -240,16 +249,22 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		}
 		else
 		{
-			skb ->prev = dev->backlog->prev;
+			skb->prev = dev->backlog->prev;
 			skb->next = dev->backlog;
 			skb->next->prev = skb;
 			skb->prev->next = skb;
 		}
 		sti();
+		/* 此处返回 0 表示只将报文加入到backlog 中并没有处理，所以需要再调用一次 */
 		return (0);
 	}
 
-	if (skb != NULL) 
+	/*
+	 * TODO: 没理解什么时候会走入该判断分支
+	 * skb != NULL 时必定 buff != NULL，所以一定会进入到上边的处理分支中，在上边分支中返回，
+	 * 所以该分支应该进不去.
+	 */
+	if (skb != NULL)
 		free_s (skb->mem_addr, skb->mem_len);
 
 	/* anything left to process? */
@@ -262,6 +277,7 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 			return (1);
 		}
 
+		/* TODO: 没理解什么时候会走入该判断分支，原因同上 */
 		if (skb != NULL)
 		{
 			sti();
@@ -273,6 +289,7 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		return (1);
 	}
 
+	/* 处理过程中，一次就只处理一个包 */
 	skb= dev->backlog;
 	if (skb->next == skb)
 	{
@@ -318,6 +335,11 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		}
 	}
 
+	/*
+	 * 如果flag 此时为0，表示此时没有进入到skb2 = skb 分支，也就是说skb 此时
+	 * 是没有用处的，需要是放掉.
+	 * 按照添加ptype 代码来看，这里应该是保持代码健壮性的，正常不会进入到该分支.
+	 */
 	if (!flag)
 	{
 		PRINTK ("discarding packet type = %X\n", type);
@@ -338,6 +360,9 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 
 /*
  * 报文发送函数
+ * 该函数做的就是将要发送的数据复制到buff 所指向的区域。
+ * 对于回环网卡，就是本地申请的内存区域；对于实际的物理网卡，是物理
+ * 网卡映射到本地的存储区域。
  */
 unsigned long
 dev_tint(unsigned char *buff,  struct device *dev)
@@ -345,11 +370,15 @@ dev_tint(unsigned char *buff,  struct device *dev)
 	int i;
 	int tmp;
 	struct sk_buff *skb;
+
+	/* 循环所有的缓冲区 */
 	for (i=0; i < DEV_NUMBUFFS; i++)
 	{
+		/* 如果缓冲区不为空 */
 		while (dev->buffs[i]!=NULL)
 		{
 			cli();
+			/* 从双向循环队列中取出一个skb */
 			skb=dev->buffs[i];
 			if (skb->next == skb)
 			{
@@ -377,6 +406,10 @@ dev_tint(unsigned char *buff,  struct device *dev)
 
 			if (tmp <= dev->mtu)
 			{
+				/*
+				 * 准备了两种发送模式：
+				 * 调用 send_packet()发送；将报文复制到buff区域
+				 */
 				if (dev->send_packet != NULL)
 				{
 					dev->send_packet(skb, dev);
@@ -397,10 +430,13 @@ dev_tint(unsigned char *buff,  struct device *dev)
 				free_skb(skb, FREE_WRITE);
 			}
 
+			/* 一次性只能发送一个包文 */
 			if (tmp != 0)
 				return (tmp);
 		}
 	}
+
+	/* 没有包文发送时，返回 0 */
 	PRINTK ("dev_tint returning 0 \n");
 	return (0);
 }

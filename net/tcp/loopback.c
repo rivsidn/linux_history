@@ -64,14 +64,15 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
 	inuse = 1;
 	sti();
 	tmp = NULL;
+	/* 报文、报文长度 */
 	done = dev_rint ((unsigned char *)(skb+1), skb->len, 0, dev);
 
 	if (skb->free)
 		free_skb (skb, FREE_WRITE);
 
-	/* TODO: next... */
 	while (done != 1)
 	{
+		/* done == 0 */
 		if (done != -1 && (i = dev_tint (buff,dev)) != 0)
 		{
 			/* print out the buffer. */
@@ -82,11 +83,10 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
 			done = dev_rint (buff, i, 0, dev);
 			if (done != -1) tmp = NULL;
 		}
-		else
+		else	/* done == -1 */
 		{
 			done = dev_rint (tmp, 0, 0, dev);
 		}
-
 	}
 	inuse = 0;
 	return (0);

@@ -96,148 +96,148 @@ static int tx_aborted = 0;			/* Empties tx bit bucket */
 static  int
 max(int a, int b)
 {
-  if (a>b) return (a);
-  return (b);
+	if (a>b) return (a);
+	return (b);
 }
 
 static  void
 wd_start(struct device *dev)
 {
-  unsigned char cmd;
-  interrupt_mask=RECV_MASK|TRANS_MASK;
-  cli();
-  cmd = inb_p(WD_COMM);
-  cmd &= ~(CSTOP|CPAGE);
-  cmd |= CSTART;
-  outb_p(cmd, WD_COMM);
-  outb_p(interrupt_mask,WD_IMR);
-  sti();
-  status |= START;
+	unsigned char cmd;
+	interrupt_mask=RECV_MASK|TRANS_MASK;
+	cli();
+	cmd = inb_p(WD_COMM);
+	cmd &= ~(CSTOP|CPAGE);
+	cmd |= CSTART;
+	outb_p(cmd, WD_COMM);
+	outb_p(interrupt_mask,WD_IMR);
+	sti();
+	status |= START;
 }
 
 int
 wd8003_open(struct device *dev)
 {
-  unsigned char cmd;
-  int i;
-  /* we probably don't want to be interrupted here. */
-  cli();
-  /* This section of code is mostly copied from the bsd driver which is
-     mostly copied from somewhere else. */
-  /* The somewhere else is probably the cmwymr(sp?) dos packet driver */
+	unsigned char cmd;
+	int i;
+	/* we probably don't want to be interrupted here. */
+	cli();
+	/* This section of code is mostly copied from the bsd driver which is
+	   mostly copied from somewhere else. */
+	/* The somewhere else is probably the cmwymr(sp?) dos packet driver */
 
-  cmd=inb_p(WD_COMM);
-  cmd|=CSTOP;
-  cmd &= ~(CSTART|CPAGE);
-  outb_p(cmd, WD_COMM);
-  outb_p(0, WD_IMR);
-  sti();
-  outb_p( dconfig,WD_DCR);
-  /*Zero the remote byte count. */
-  outb_p(0, WD_RBY0);
-  outb_p(0, WD_RBY1);
-  outb_p(WD_MCONFIG,WD_RCC);
-  outb_p(WD_TCONFIG,WD_TRC);
-  outb_p(0,WD_TRPG);		 /* Set the transmit page start = 0 */
-  outb_p( max_pages,WD_PSTOP); /* (read) page stop = top of board memory */
-  outb_p(WD_TXBS,WD_PSTRT);	/* (read) page start = cur = bnd = top of tx memory */
-  outb_p(WD_TXBS,WD_BNDR);
-  /* clear interrupt status. */
-  outb_p(0xff,WD_ISR);
-  /* we don't want no stinking interrupts. */
-  outb_p(0 ,WD_IMR);
-  cmd|=1<<CPAGE_SHIFT;
-  outb_p(cmd,WD_COMM);
-  /* set the ether address. */
-  for (i=0; i < ETHER_ADDR_LEN; i++)
-    {
-      outb_p(dev->dev_addr[i],WD_PAR0+i);
-    }
-  /* National recommends setting the boundry < current page register */
-  outb_p(WD_TXBS+1,WD_CUR);	/* Set the current page = page start + 1 */
-  /* set the multicast address. */
-  for (i=0; i < ETHER_ADDR_LEN; i++)
-    {
-      outb_p(dev->broadcast[i],WD_MAR0+i);
-    }
+	cmd=inb_p(WD_COMM);
+	cmd|=CSTOP;
+	cmd &= ~(CSTART|CPAGE);
+	outb_p(cmd, WD_COMM);
+	outb_p(0, WD_IMR);
+	sti();
+	outb_p( dconfig,WD_DCR);
+	/*Zero the remote byte count. */
+	outb_p(0, WD_RBY0);
+	outb_p(0, WD_RBY1);
+	outb_p(WD_MCONFIG,WD_RCC);
+	outb_p(WD_TCONFIG,WD_TRC);
+	outb_p(0,WD_TRPG);		 /* Set the transmit page start = 0 */
+	outb_p( max_pages,WD_PSTOP); /* (read) page stop = top of board memory */
+	outb_p(WD_TXBS,WD_PSTRT);	/* (read) page start = cur = bnd = top of tx memory */
+	outb_p(WD_TXBS,WD_BNDR);
+	/* clear interrupt status. */
+	outb_p(0xff,WD_ISR);
+	/* we don't want no stinking interrupts. */
+	outb_p(0 ,WD_IMR);
+	cmd|=1<<CPAGE_SHIFT;
+	outb_p(cmd,WD_COMM);
+	/* set the ether address. */
+	for (i=0; i < ETHER_ADDR_LEN; i++)
+	{
+		outb_p(dev->dev_addr[i],WD_PAR0+i);
+	}
+	/* National recommends setting the boundry < current page register */
+	outb_p(WD_TXBS+1,WD_CUR);	/* Set the current page = page start + 1 */
+	/* set the multicast address. */
+	for (i=0; i < ETHER_ADDR_LEN; i++)
+	{
+		outb_p(dev->broadcast[i],WD_MAR0+i);
+	}
 
-  cmd&=~(CPAGE|CRDMA);
-  cmd|= 4<<CRDMA_SHIFT;
-  outb_p(cmd, WD_COMM);
-  outb_p(WD_RCONFIG,WD_RCC);
-  status = OPEN;
-  wd_start(dev); 
-  return (0);
+	cmd&=~(CPAGE|CRDMA);
+	cmd|= 4<<CRDMA_SHIFT;
+	outb_p(cmd, WD_COMM);
+	outb_p(WD_RCONFIG,WD_RCC);
+	status = OPEN;
+	wd_start(dev); 
+	return (0);
 }
 
 /* This routine just calls the ether rcv_int. */
 static  int
 wdget(struct wd_ring *ring, struct device *dev)
 {
-  unsigned char *fptr;
-  unsigned long len;
-  fptr = (unsigned char *)(ring +1);
-  len = ring->count-4;
-  return (dev_rint(fptr, len, 0, dev));
+	unsigned char *fptr;
+	unsigned long len;
+	fptr = (unsigned char *)(ring +1);
+	len = ring->count-4;
+	return (dev_rint(fptr, len, 0, dev));
 }
 
 int
 wd8003_start_xmit(struct sk_buff *skb, struct device *dev)
 {
-  unsigned char cmd;
-  int len;
-  cli();
-  if (status & TRS_BUSY)
-    {
-       /* put in a time out. */
-       if (jiffies - dev->trans_start < 30)
-	 return (1);
-       printk ("wd8003 transmit timed out. \n");
-    }
-  status |= TRS_BUSY;
-  sti();
-
-  if (!skb->arp)
-    {
-      if ( dev->rebuild_header (skb+1, dev)) 
+	unsigned char cmd;
+	int len;
+	cli();
+	if (status & TRS_BUSY)
 	{
-	   skb->dev = dev;
-	   arp_queue (skb);
-	   status &= ~TRS_BUSY;
-	   return (0);
+		/* put in a time out. */
+		if (jiffies - dev->trans_start < 30)
+			return (1);
+		printk ("wd8003 transmit timed out. \n");
 	}
-    }
+	status |= TRS_BUSY;
+	sti();
 
-  memcpy ((unsigned char *)dev->mem_start, skb+1, skb->len);
+	if (!skb->arp)
+	{
+		if ( dev->rebuild_header (skb+1, dev)) 
+		{
+			skb->dev = dev;
+			arp_queue (skb);
+			status &= ~TRS_BUSY;
+			return (0);
+		}
+	}
 
-  len = skb->len;
+	memcpy ((unsigned char *)dev->mem_start, skb+1, skb->len);
 
-  /* now we need to set up the card info. */
-  dev->trans_start = jiffies;
-  len=max(len, ETHER_MIN_LEN); /* actually we should zero out
-				  the extra memory. */
-/*  printk ("start_xmit len - %d\n", len);*/
-  cli();
-  cmd=inb_p(WD_COMM);
-  cmd &= ~CPAGE;
-  outb_p(cmd, WD_COMM);
+	len = skb->len;
 
-  interrupt_mask |= TRANS_MASK;
-  if (!(status & IN_INT))
-    outb (interrupt_mask, WD_IMR);
+	/* now we need to set up the card info. */
+	dev->trans_start = jiffies;
+	len=max(len, ETHER_MIN_LEN); /* actually we should zero out
+					the extra memory. */
+	/*  printk ("start_xmit len - %d\n", len);*/
+	cli();
+	cmd=inb_p(WD_COMM);
+	cmd &= ~CPAGE;
+	outb_p(cmd, WD_COMM);
 
-  outb_p(len&0xff,WD_TB0);
-  outb_p(len>>8,WD_TB1);
-  cmd |= CTRANS;
-  outb_p(cmd,WD_COMM);
-  sti();
-  
-  if (skb->free)
-    {
-	    free_skb (skb, FREE_WRITE);
-    }
+	interrupt_mask |= TRANS_MASK;
+	if (!(status & IN_INT))
+		outb (interrupt_mask, WD_IMR);
 
-  return (0);
+	outb_p(len&0xff,WD_TB0);
+	outb_p(len>>8,WD_TB1);
+	cmd |= CTRANS;
+	outb_p(cmd,WD_COMM);
+	sti();
+
+	if (skb->free)
+	{
+		free_skb (skb, FREE_WRITE);
+	}
+
+	return (0);
 }
 
 /* tell the card about the new boundary. */
@@ -302,84 +302,84 @@ wd_get_cur( struct device *dev )
 static  void
 wd_rcv( struct device *dev )
 {
-   
-   unsigned char   pkt;	/* Next packet page start */
-   unsigned char   bnd;	/* Last packet page end */
-   unsigned char   cur;	/* Future packet page start */
-   unsigned char   cmd;	/* Command register save */
-   struct wd_ring *ring;
-   int		   done=0;
-   
-   /* Calculate next packet location */
-   cur = wd_get_cur( dev );
-   bnd = wd_get_bnd( dev );
-   if( (pkt = bnd + 1) == max_pages )
-     pkt = WD_TXBS;
-   
-   while( done != 1)
-     {
-	if (pkt != cur)
-	  {
 
-	     /* Position pointer to packet in card ring buffer */
-	     ring = (struct wd_ring *) (dev->mem_start + (pkt << 8));
-	     
-	     /* Ensure a valid packet */
-	     if( ring->status & 1 )
-	       { 
-		  /* Too small and too big packets are
-		     filtered by the board */
-		  if( wd_debug )
-		    printk("\nwd8013 - wdget: bnd = %d, pkt = %d, "
-			   "cur = %d, status = %d, len = %d, next = %d",
-			   bnd, pkt, cur, ring->status, ring->count,
-			   ring->next);
-		  
-		  stats.rx_packets++; /* count all receives */
-		  done = wdget( ring, dev ); /* get the packet */
-		  
-		  /* see if we need to process this packet again. */
-		  if (done == -1) continue;
+	unsigned char   pkt;	/* Next packet page start */
+	unsigned char   bnd;	/* Last packet page end */
+	unsigned char   cur;	/* Future packet page start */
+	unsigned char   cmd;	/* Command register save */
+	struct wd_ring *ring;
+	int		   done=0;
 
-		  /* Calculate next packet location */
-		  pkt = ring->next;
-		  
-		  /* Compute new boundry - tell the chip */
-		  if( (bnd = pkt - 1) < WD_TXBS )
-		    bnd = max_pages - 1;
-		  wd_put_bnd(bnd, dev);
-		  
-		  /* update our copy of cur. */
-		  cur = wd_get_cur(dev);
-	       }
-	     else 
-	       {	/* Bad packet in ring buffer -
-			   should not happen due to hardware filtering */
-		  printk("wd8013 - bad packet: len = %d, status = x%x, "
-			 "bnd = %d, pkt = %d, cur = %d\n"
-			 "trashing receive buffer!",
-			 ring->count, ring->status, bnd, pkt,
-			 cur);
-		  /* Reset bnd = cur-1 */
-		  if( ( bnd = wd_get_cur( dev ) - 1 ) < WD_TXBS )
-		    bnd = max_pages - 1;
-		  wd_put_bnd( bnd, dev );
-		  break; /* return */
-	       }
-	     
-	  }
-	else
-	  {
-	     done = dev_rint(NULL, 0,0, dev);
-	  }
-     }
-   
-   /* reset to page 0 */
-   cmd = inb_p(WD_COMM);
-   if (cmd & 0x40)
-     {
-	outb_p(cmd & ~(CPAGE1), WD_COMM);	/* select page 0 */
-     }
+	/* Calculate next packet location */
+	cur = wd_get_cur( dev );
+	bnd = wd_get_bnd( dev );
+	if( (pkt = bnd + 1) == max_pages )
+		pkt = WD_TXBS;
+
+	while( done != 1)
+	{
+		if (pkt != cur)
+		{
+
+			/* Position pointer to packet in card ring buffer */
+			ring = (struct wd_ring *) (dev->mem_start + (pkt << 8));
+
+			/* Ensure a valid packet */
+			if( ring->status & 1 )
+			{ 
+				/* Too small and too big packets are
+				   filtered by the board */
+				if( wd_debug )
+					printk("\nwd8013 - wdget: bnd = %d, pkt = %d, "
+							"cur = %d, status = %d, len = %d, next = %d",
+							bnd, pkt, cur, ring->status, ring->count,
+							ring->next);
+
+				stats.rx_packets++; /* count all receives */
+				done = wdget( ring, dev ); /* get the packet */
+
+				/* see if we need to process this packet again. */
+				if (done == -1) continue;
+
+				/* Calculate next packet location */
+				pkt = ring->next;
+
+				/* Compute new boundry - tell the chip */
+				if( (bnd = pkt - 1) < WD_TXBS )
+					bnd = max_pages - 1;
+				wd_put_bnd(bnd, dev);
+
+				/* update our copy of cur. */
+				cur = wd_get_cur(dev);
+			}
+			else 
+			{	/* Bad packet in ring buffer -
+				   should not happen due to hardware filtering */
+				printk("wd8013 - bad packet: len = %d, status = x%x, "
+						"bnd = %d, pkt = %d, cur = %d\n"
+						"trashing receive buffer!",
+						ring->count, ring->status, bnd, pkt,
+						cur);
+				/* Reset bnd = cur-1 */
+				if( ( bnd = wd_get_cur( dev ) - 1 ) < WD_TXBS )
+					bnd = max_pages - 1;
+				wd_put_bnd( bnd, dev );
+				break; /* return */
+			}
+
+		}
+		else
+		{
+			done = dev_rint(NULL, 0,0, dev);
+		}
+	}
+
+	/* reset to page 0 */
+	cmd = inb_p(WD_COMM);
+	if (cmd & 0x40)
+	{
+		outb_p(cmd & ~(CPAGE1), WD_COMM);	/* select page 0 */
+	}
 }
 
 /* This routine handles the interrupt case of receiver overruns */
@@ -474,14 +474,14 @@ wd8003_interrupt(int reg_ptr)
 	ptr = (struct pt_regs *)reg_ptr;
 	irq = -(ptr->orig_eax+2);
 	for (dev = dev_base; dev != NULL; dev = dev->next)
-	  {
-	     if (dev->irq == irq) break;
-	  }
+	{
+		if (dev->irq == irq) break;
+	}
 	if (dev == NULL) 
-	  {
-	     printk ("we.c: irq %d for unknown device\n", irq);
-	     return;
-	  }
+	{
+		printk ("we.c: irq %d for unknown device\n", irq);
+		return;
+	}
 	sti(); /* this could take a long time, we should have interrupts on. */
 
 	cmd = inb_p( CR );/* Select page 0 */  
@@ -489,7 +489,7 @@ wd8003_interrupt(int reg_ptr)
 		cmd &= ~(PS0|PS1);
 		outb_p(cmd, CR );
 	}
-	
+
 	if (wd_debug)
 		printk("\nwd8013 - interrupt isr = x%x", inb_p( ISR ) );
 
@@ -539,7 +539,7 @@ wd8003_interrupt(int reg_ptr)
 			}
 			if (errors & FU )
 				stats.tx_fifo_errors++;
-				printk("\nwd8013 - TX FIFO underrun!");
+			printk("\nwd8013 - TX FIFO underrun!");
 
 			/* Cannot do anymore - empty the bit bucket */
 			tx_aborted = 1;
@@ -574,106 +574,106 @@ wd8003_interrupt(int reg_ptr)
 
 static struct sigaction wd8003_sigaction = 
 {
-   wd8003_interrupt,
-   0,
-   0,
-   NULL
+	wd8003_interrupt,
+	0,
+	0,
+	NULL
 };
 
 void
 wd8003_init(struct device *dev)
 {
-  unsigned char csum;
-  int i;
-  csum = 0;
-  for (i = 0; i < 8; i++)
-    {
-      csum += inb_p(WD_ROM+i);
-    }
-  if (csum != WD_CHECK)
-    {
-      printk ("Warning WD8013 board not found at i/o = %X.\n",dev->base_addr);
+	unsigned char csum;
+	int i;
+	csum = 0;
+	for (i = 0; i < 8; i++)
+	{
+		csum += inb_p(WD_ROM+i);
+	}
+	/* 读取板上地址，查看是否正确识别 */
+	if (csum != WD_CHECK)
+	{
+		printk ("Warning WD8013 board not found at i/o = %X.\n",dev->base_addr);
 
-      /* make sure no one can attempt to open the device. */
-      status = OPEN;
-      return;
-    }
-  printk("wd8013");
-  /* initialize the rest of the device structure. */
-  dev->mtu = 1500; /* eth_mtu */
-  dev->hard_start_xmit = wd8003_start_xmit;
-  dev->open = wd8003_open;
-  dev->hard_header = eth_hard_header;
-  dev->add_arp = eth_add_arp;
-  dev->type_trans = eth_type_trans;
-  dev->hard_header_len = sizeof (struct enet_header);
-  dev->addr_len = ETHER_ADDR_LEN;
-  dev->type = ETHER_TYPE;
-  dev->queue_xmit = dev_queue_xmit;
-  dev->rebuild_header = eth_rebuild_header;
-  for (i = 0; i < DEV_NUMBUFFS; i++)
-    dev->buffs[i] = NULL;
+		/* make sure no one can attempt to open the device. */
+		status = OPEN;
+		return;
+	}
+	printk("wd8013");
+	/* initialize the rest of the device structure. */
+	dev->mtu = 1500; /* eth_mtu */
+	dev->hard_start_xmit = wd8003_start_xmit;
+	dev->open = wd8003_open;
+	dev->hard_header = eth_hard_header;
+	dev->add_arp = eth_add_arp;
+	dev->type_trans = eth_type_trans;
+	dev->hard_header_len = sizeof (struct enet_header);
+	dev->addr_len = ETHER_ADDR_LEN;
+	dev->type = ETHER_TYPE;
+	dev->queue_xmit = dev_queue_xmit;
+	dev->rebuild_header = eth_rebuild_header;
+	for (i = 0; i < DEV_NUMBUFFS; i++)
+		dev->buffs[i] = NULL;
 
 #ifndef FORCE_8BIT
-  /* check for 16 bit board - it doesn't have register 0/8 aliasing */
-  for (i = 0; i < 8; i++) {
-	if( inb_p( EN_SAPROM+i ) != inb_p( EN_CMD+i) ){
-		csum = inb_p( EN_REG1 ); /* fiddle with 16bit bit */
-		outb( csum ^ BUS16, EN_REG1 ); /* attempt to clear 16bit bit */
-		if( (csum & BUS16) == (inb_p( EN_REG1 ) & BUS16) ) {
-			printk(", using 16 bit I/F ");
-			dconfig |= 1; /* use word mode of operation */
-			outb_p( LAN16ENABLE|MEMMASK, EN_REG5);
+	/* check for 16 bit board - it doesn't have register 0/8 aliasing */
+	for (i = 0; i < 8; i++) {
+		if( inb_p( EN_SAPROM+i ) != inb_p( EN_CMD+i) ){
+			csum = inb_p( EN_REG1 ); /* fiddle with 16bit bit */
+			outb( csum ^ BUS16, EN_REG1 ); /* attempt to clear 16bit bit */
+			if( (csum & BUS16) == (inb_p( EN_REG1 ) & BUS16) ) {
+				printk(", using 16 bit I/F ");
+				dconfig |= 1; /* use word mode of operation */
+				outb_p( LAN16ENABLE|MEMMASK, EN_REG5);
+				outb( csum , EN_REG1 );
+				break; /* We have a 16bit board here! */
+			}
 			outb( csum , EN_REG1 );
-			break; /* We have a 16bit board here! */
 		}
-		outb( csum , EN_REG1 );
 	}
-    }
 #endif /* FORCE_8BIT */
 
-  /* mapin the interface memory. */
-  outb_p(WD_IMEM,WD_CTL);
+	/* mapin the interface memory. */
+	outb_p(WD_IMEM,WD_CTL);
 
-  /* clear the interface memory */
-  for (i = dev->mem_start; i < dev->mem_end; i++)
-    {
-      *((unsigned char *)i) = 0;
-      if (*((unsigned char *)i) != 0) 
+	/* clear the interface memory */
+	for (i = dev->mem_start; i < dev->mem_end; i++)
 	{
-	  printk ("WD Memory error.\n");
-	  if( (i - dev->mem_start) > 4096 )
-	  	break;
-	  else
-	  	status = OPEN;
+		*((unsigned char *)i) = 0;
+		if (*((unsigned char *)i) != 0) 
+		{
+			printk ("WD Memory error.\n");
+			if( (i - dev->mem_start) > 4096 )
+				break;
+			else
+				status = OPEN;
+		}
 	}
-    }
-  /* Calculate how many pages of memory on board */
-  max_pages = ( i - dev->mem_start )/256;
+	/* Calculate how many pages of memory on board */
+	max_pages = ( i - dev->mem_start )/256;
 
-  /* need to set up the dev->mem_end and dev->rmem_end */
-  dev->rmem_end = i;
-  dev->mem_end = i;
+	/* need to set up the dev->mem_end and dev->rmem_end */
+	dev->rmem_end = i;
+	dev->mem_end = i;
 
-  /* print the initialization message, and the
-     ethernet address. */
-  printk (", %d pages memory, ethernet Address: ", max_pages );
-  for (i = 0; i <ETHER_ADDR_LEN; i++)
-    {
-      dev->dev_addr[i]=inb_p(WD_ROM+i);
-      dev->broadcast[i]=0xff;
-      printk ("%2.2X ",dev->dev_addr[i]);
-    }
+	/* print the initialization message, and the ethernet address. */
+	printk (", %d pages memory, ethernet Address: ", max_pages );
+	for (i = 0; i <ETHER_ADDR_LEN; i++)
+	{
+		dev->dev_addr[i]=inb_p(WD_ROM+i);
+		dev->broadcast[i]=0xff;
+		printk ("%2.2X ",dev->dev_addr[i]);
+	}
 
-  /* Clear the statistics */
-  for( i = 0; i < sizeof( struct enet_statistics ); i++ )
-	((char *)&stats)[i] = 0;
+	/* Clear the statistics */
+	for( i = 0; i < sizeof( struct enet_statistics ); i++ )
+		((char *)&stats)[i] = 0;
 
-  printk ("\n");
-  status = 0;
+	printk ("\n");
+	status = 0;
 
-  if (irqaction (dev->irq, &wd8003_sigaction))
-    {
-       printk ("Unable to get IRQ%d for wd8013 board\n", dev->irq);
-    }
+	if (irqaction (dev->irq, &wd8003_sigaction))
+	{
+		printk ("Unable to get IRQ%d for wd8013 board\n", dev->irq);
+	}
 }
