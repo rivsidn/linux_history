@@ -152,13 +152,13 @@ arp_targetp(struct arp *arp)
 static  void
 arp_free (void *ptr, unsigned long len)
 {
-  free_s(ptr, len);
+	free_s(ptr, len);
 }
 
 static  void *
 arp_malloc (unsigned long amount)
 {
-  return (malloc (amount));
+	return (malloc (amount));
 }
 
 static  int
@@ -276,21 +276,25 @@ arp_destroy(unsigned long paddr)
 static  struct arp_table *
 create_arp (unsigned long paddr, unsigned char *addr, int hlen)
 {
-  struct arp_table *apt;
-  unsigned long hash;
-  apt = arp_malloc (sizeof (*apt));
-  if (apt == NULL) return (NULL);
+	struct arp_table *apt;
+	unsigned long hash;
 
-  hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
-  apt->ip = paddr;
-  apt->hlen =hlen;
-  memcpy (apt->hard, addr, hlen);
-  apt->last_used=timer_seq;
-  sti();
-  apt->next = arp_table[hash];
-  arp_table[hash]=apt;
-  cli();
-  return (apt);
+	apt = arp_malloc (sizeof (*apt));
+	if (apt == NULL)
+		return (NULL);
+
+	hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
+	apt->ip = paddr;
+	apt->hlen =hlen;
+	memcpy (apt->hard, addr, hlen);
+	apt->last_used=timer_seq;
+
+	/* arp表项插入到hash表中 */
+	sti();
+	apt->next = arp_table[hash];
+	arp_table[hash]=apt;
+	cli();
+	return (apt);
 }
 
 int
@@ -351,55 +355,66 @@ arp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
    return (ret);
 }
 
+/*
+ * paddr	对端IP地址
+ * dev  	本地设备
+ * saddr	本地IP地址
+ */
 void
 arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 {
-  struct sk_buff *skb;
-  struct arp *arp;
-  struct arp_table *apt;
-  int tmp;
-  PRINTK ("arp_snd (paddr=%X, dev=%X, saddr=%X)\n",paddr, dev, saddr);
+	struct sk_buff *skb;
+	struct arp *arp;
+	struct arp_table *apt;
+	int tmp;
+	PRINTK ("arp_snd (paddr=%X, dev=%X, saddr=%X)\n",paddr, dev, saddr);
 
-  /* first we build a dummy arp table entry. */
-  apt = create_arp (paddr, NULL, 0);
-  if (apt == NULL) return;
+	/* first we build a dummy arp table entry. */
+	apt = create_arp (paddr, NULL, 0);
+	if (apt == NULL) return;
 
-  skb = arp_malloc (sizeof (*arp) + sizeof (*skb) + dev->hard_header_len +
-		    2*dev->addr_len+8);
-  if (skb == NULL) return;
-  
-  skb->sk = NULL;
-  skb->mem_addr = skb;
-  skb->mem_len = sizeof (*arp) + sizeof (*skb) + dev->hard_header_len +
-		    2*dev->addr_len+8;
-  skb->arp = 1;
-  skb->dev = dev;
-  skb->len = sizeof (*arp) + dev->hard_header_len + 2*dev->addr_len+8;
-  skb->next = NULL;
+	skb = arp_malloc (sizeof (*arp) + sizeof (*skb) + dev->hard_header_len +
+			2*dev->addr_len+8);
+	if (skb == NULL) return;
 
-  tmp = dev->hard_header ((unsigned char *)(skb+1), dev,
-			  ETHERTYPE_ARP, 0, saddr, skb->len);
-  if (tmp < 0)
-    {
-       arp_free (skb->mem_addr, skb->mem_len);
-       return;
-    }
+	skb->sk = NULL;
+	skb->mem_addr = skb;
+	skb->mem_len = sizeof (*arp) + sizeof (*skb) + dev->hard_header_len +
+		2*dev->addr_len+8;
+	skb->arp = 1;
+	skb->dev = dev;
+	skb->len = sizeof (*arp) + dev->hard_header_len + 2*dev->addr_len+8;
+	skb->next = NULL;
 
-  arp =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
-  arp->hrd = net16(dev->type);
-  arp->pro = NET16(ARP_IP_PROT);
-  arp->hlen = dev->addr_len;
-  arp->plen = 4;
-  arp->op = NET16(ARP_REQUEST);
-  *arp_sourcep(arp) = saddr;
-  *arp_targetp(arp) = paddr;
-  memcpy (arp_sourceh(arp), dev->dev_addr, dev->addr_len);
-  memcpy (arp_targeth(arp), dev->broadcast, dev->addr_len);
-  PRINTK(">>\n");
-  print_arp(arp);
-  dev->queue_xmit (skb, dev, 0);
+	tmp = dev->hard_header ((unsigned char *)(skb+1), dev,
+			ETHERTYPE_ARP, 0, saddr, skb->len);
+	if (tmp < 0)
+	{
+		arp_free (skb->mem_addr, skb->mem_len);
+		return;
+	}
+
+	arp =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
+	arp->hrd = net16(dev->type);
+	arp->pro = NET16(ARP_IP_PROT);
+	arp->hlen = dev->addr_len;
+	arp->plen = 4;
+	arp->op = NET16(ARP_REQUEST);
+	*arp_sourcep(arp) = saddr;
+	*arp_targetp(arp) = paddr;
+	memcpy (arp_sourceh(arp), dev->dev_addr, dev->addr_len);
+	memcpy (arp_targeth(arp), dev->broadcast, dev->addr_len);
+	PRINTK(">>\n");
+	print_arp(arp);
+	dev->queue_xmit (skb, dev, 0);
 }
 
+/*
+ * haddr	输出参数，获取到的二层地址
+ * paddr	对端IP地址
+ * dev  	本地设备
+ * saddr	本地IP地址
+ */
 int
 arp_find(unsigned char *haddr, unsigned long paddr, struct device *dev,
 	   unsigned long saddr)
@@ -453,6 +468,7 @@ arp_add (unsigned long addr, unsigned char *haddr, struct device *dev)
 	apt = arp_lookup (addr);
 	if (apt != NULL)
 	{
+		/* 更新时间戳 */
 		apt->last_used = timer_seq;
 		memcpy (apt->hard, haddr , dev->addr_len);
 		return;
@@ -463,7 +479,7 @@ arp_add (unsigned long addr, unsigned char *haddr, struct device *dev)
 void
 arp_add_broad (unsigned long addr, struct device *dev)
 {
-  arp_add (addr,  dev->broadcast , dev);
+	arp_add (addr,  dev->broadcast , dev);
 }
 
 

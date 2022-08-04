@@ -155,13 +155,13 @@ ip_addr_match (unsigned long addr1, unsigned long addr2)
 int
 my_ip_addr(unsigned long addr)
 {
-  int i;
-  for (i = 0; i < MAX_IP_ADDRES; i++)
-    {
-      if (ip_addr[i] == 0) return (0);
-      if (ip_addr_match (addr, ip_addr[i])) return (1);
-    }
-  return (0);
+	int i;
+	for (i = 0; i < MAX_IP_ADDRES; i++)
+	{
+		if (ip_addr[i] == 0) return (0);
+		if (ip_addr_match (addr, ip_addr[i])) return (1);
+	}
+	return (0);
 }
 
 /* these two routines will do routining. */
