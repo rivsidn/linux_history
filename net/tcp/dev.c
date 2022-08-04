@@ -181,10 +181,15 @@ dev_queue_xmit (struct sk_buff *skb, struct device *dev, int pri)
   -1 <- last packet not processed, try again. */
 
 /*
- * 报文接收函数
- * 将buff 中的内容copy 到skb 中，进一步处理。
+ * 报文接收函数，将buff 中的内容copy 到skb 中，进一步处理。
  * buff 不为空表示此时接收到了新的数据；buff 为空表示此时没有接收到
- * 新数据，用于处理backlog 中数据。
+ * 新数据，仅用于处理backlog 中数据。
+ *
+ * 1	backlog 中已经没有数据可以处理了;
+ * 	将报文放到backlog 过程中没有申请到内存，且此时backlog 为空.
+ * 0	将数据放到backlog 中，没有处理，需要再次调用该函数才能处理;
+ * 	报文正常处理，但是backlog 并不为空.
+ * -1	没有正确处理buff 且此时backlog 不为空.
  */
 int
 dev_rint(unsigned char *buff, unsigned long len, int flags,
@@ -271,6 +276,7 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 
 	if (dev->backlog == NULL)
 	{
+		/* 此时已经没有报文接收了，直接返回 1 */
 		if (buff == NULL)
 		{
 			sti();
@@ -284,6 +290,7 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 			return (-1);
 		}
 
+		/* 此时buff != NULL 但是 skb == NULL，是因为没有内存所以无法将包文放到backlog 中，返回 1 */
 		sti();
 		printk ("dev_rint:Dropping packets due to lack of memory\n");
 		return (1);
@@ -346,6 +353,13 @@ dev_rint(unsigned char *buff, unsigned long len, int flags,
 		free_skb (skb, FREE_READ);
 	}
 
+	/*
+	 * 此时backlog 非空。
+	 * 如果buff == NULL，表示此时仅仅是用于处理backlog 中报文，backlog 不为空，
+	 * 所以需要重新调用，此时返回(0)。
+	 * 如果buff != NULL，表示此时想要将报文放到backlog 中，但是没有成功，需要
+	 * 重新处理，此时返回(-1)。
+	 */
 	if (buff == NULL)
 		return (0);
 	else

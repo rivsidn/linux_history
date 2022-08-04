@@ -44,6 +44,24 @@
 
 #include "../kern_sock.h" /* for PRINTK */
 
+/*
+ * 可以通过状态机查看该函数的流程:
+ *
+ *                              !=0                              0
+ *                  +------------------------+      +-----------------------------+
+ *    +----------+  |                        |      |                             |
+ *    |          |  |                        |      |                             |
+ *    |       +--v--v-----+      0         +-+------v-+          0          +-----+----+
+ *    |       | buff!=NULL+--------------->|dev_tint()+-------------------->|buff==NULL|
+ * -1 |       +--+--+-----+                +----------+                     +-----+----+
+ *    |          |  |                                                             |
+ *    |          |  |                                                             |
+ *    +----------+  |            1           +-----+             1                |
+ *                  +----------------------->| END |<-----------------------------+
+ *                                           +-----+
+ *
+ * buff!=NULL、buff==NULL表示dev_rint() 的第一个参数是否为空.
+ */
 static int
 loopback_xmit(struct sk_buff *skb, struct device *dev)
 {
@@ -64,7 +82,12 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
 	inuse = 1;
 	sti();
 	tmp = NULL;
-	/* 报文、报文长度 */
+	/*
+	 * buff != NULL 的时候有几种可能：
+	 * 1.skb申请到内存，将报文放到backlog中处理，函数return 0
+	 * 2.skb没申请到内存，backlog为空，函数return 1
+	 * 3.skb没申请到内存，backlog不为空，函数return -1
+	 */
 	done = dev_rint ((unsigned char *)(skb+1), skb->len, 0, dev);
 
 	if (skb->free)
@@ -72,19 +95,30 @@ loopback_xmit(struct sk_buff *skb, struct device *dev)
 
 	while (done != 1)
 	{
-		/* done == 0 */
 		if (done != -1 && (i = dev_tint (buff,dev)) != 0)
 		{
+			/*
+			 * done == 0
+			 */
 			/* print out the buffer. */
 			PRINTK ("ethernet xmit: \n");
 			eth = (struct enet_header *)buff;
 			print_eth (eth);
 			tmp = buff;
+			/* 此时 buff != NULL，可能性与上述一致 */
 			done = dev_rint (buff, i, 0, dev);
-			if (done != -1) tmp = NULL;
+			if (done != -1)
+				tmp = NULL;
 		}
-		else	/* done == -1 */
+		else
 		{
+			/*
+			 * done == -1
+			 * 表示上一个报文没能正常处理，所以需要重新发送
+			 * done == 0 && dev_tint() == 0
+			 * 之前的报文正常处理了，但是此时没有能接收的数据，tmp==NULL，
+			 * 处理backlog中数据
+			 */
 			done = dev_rint (tmp, 0, 0, dev);
 		}
 	}
