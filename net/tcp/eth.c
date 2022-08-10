@@ -67,7 +67,14 @@ print_eth (struct enet_header *eth)
 }
 
 /*
- * 填充以太头
+ * 填充以太头，成功返回 (14)，失败返回 (-14)
+ *
+ * buff		输出参数，设置二层头部
+ * dev		本地网络设备
+ * type		三层协议类型，以太头中设置的协议类型
+ * daddr	对端IP地址
+ * saddr	本地IP地址
+ * len		数据包长度，函数中并没有用到该参数
  */
 int
 eth_hard_header (unsigned char *buff, struct device *dev,
@@ -83,6 +90,7 @@ eth_hard_header (unsigned char *buff, struct device *dev,
 	memcpy (eth->saddr, dev->dev_addr, dev->addr_len);
 	if (daddr == 0)
 	{
+		/* 设置成广播地址 */
 		memset (eth->daddr, 0xff, dev->addr_len);
 		return (14);
 	}

@@ -145,9 +145,8 @@ struct sk_buff
 		unsigned char *raw;
 		unsigned long seq;
 	} h;
-	unsigned long mem_len;
-	/* 报文长度 */
-	unsigned long len;
+	unsigned long mem_len;		//报文占用内存大小
+	unsigned long len;		//报文长度
 	unsigned long saddr;
 	unsigned long daddr;
 	/*

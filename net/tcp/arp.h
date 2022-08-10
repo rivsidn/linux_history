@@ -22,13 +22,21 @@
 #ifndef _TCP_ARP_H
 #define _TCP_ARP_H
 
+/*
+ * 对应ARP包头信息
+ */
 struct arp
 {
-  unsigned short hrd;
-  unsigned short pro;
-  unsigned char hlen;
-  unsigned char plen;
-  unsigned short op;
+	/* 硬件类型: 以太网 */
+	unsigned short hrd;
+	/* 协议类新: IPv4 */
+	unsigned short pro;
+	/* 硬件地址长度(字节), mac地址长度为6 */
+	unsigned char hlen;
+	/* 协议地址长度(字节) */
+	unsigned char plen;
+	/* 操作码 */
+	unsigned short op;
 };
 
 

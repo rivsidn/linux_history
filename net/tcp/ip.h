@@ -94,6 +94,7 @@ struct ip_header
 #define IPOPT_TIMESTAMP 68
 #define IP_LOOPBACK_ADDR 0x0100007f
  
+/* 小端字节序->网络字节序 */
 static inline unsigned short
 net16(unsigned short x)
 {
@@ -101,6 +102,7 @@ net16(unsigned short x)
   return (x);
 }
 
+/* 小端字节序->网络字节序 */
 static inline unsigned long
 net32(unsigned long x)
 {

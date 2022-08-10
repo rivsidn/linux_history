@@ -207,28 +207,31 @@ arp_response (struct arp *arp1, struct device *dev)
   return (0);
 }
 
-/* This will find an entry in the arp table by looking at the ip
-   address. */
+/* 通过查询IP地址获取ARP表项 */
+/* This will find an entry in the arp table by looking at the ip address. */
 static  struct arp_table *
 arp_lookup (unsigned long paddr)
 {
-  unsigned long hash;
-  struct arp_table *apt;
-  PRINTK ("arp_lookup(paddr=%X)\n", paddr);
-  /* we don't want to arp ourselves. */
-  if (my_ip_addr(paddr)) return (NULL);
-  hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
-  cli();
-  for (apt = arp_table[hash]; apt != NULL; apt = apt->next)
-    {
-      if (apt->ip == paddr)
+	unsigned long hash;
+	struct arp_table *apt;
+	PRINTK ("arp_lookup(paddr=%X)\n", paddr);
+	/* we don't want to arp ourselves. */
+	if (my_ip_addr(paddr))
+		return (NULL);
+
+	/* 获取hash，查询hash表 */
+	hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
+	cli();
+	for (apt = arp_table[hash]; apt != NULL; apt = apt->next)
 	{
-	   sti();
-	   return (apt);
+		if (apt->ip == paddr)
+		{
+			sti();
+			return (apt);
+		}
 	}
-    }
-  sti();
-  return (NULL);
+	sti();
+	return (NULL);
 }
 
 void
@@ -271,8 +274,14 @@ arp_destroy(unsigned long paddr)
   sti();
 }
 
-/* this routine does not check for duplicates.  It assumes the caller
-   does. */
+/*
+ * 该程序并没有查重，假定调用者会做这些.
+ *
+ * paddr	对端IP地址
+ * addr		对端mac地址
+ * hlen		对端mac地址长度
+ */
+/* this routine does not check for duplicates.  It assumes the caller does. */
 static  struct arp_table *
 create_arp (unsigned long paddr, unsigned char *addr, int hlen)
 {
@@ -356,6 +365,8 @@ arp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 }
 
 /*
+ * 发送arp报文
+ *
  * paddr	对端IP地址
  * dev  	本地设备
  * saddr	本地IP地址
@@ -371,11 +382,14 @@ arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 
 	/* first we build a dummy arp table entry. */
 	apt = create_arp (paddr, NULL, 0);
-	if (apt == NULL) return;
+	if (apt == NULL)
+		return;
 
+	/* 申请内存，构建ARP表项 */
 	skb = arp_malloc (sizeof (*arp) + sizeof (*skb) + dev->hard_header_len +
 			2*dev->addr_len+8);
-	if (skb == NULL) return;
+	if (skb == NULL)
+		return;
 
 	skb->sk = NULL;
 	skb->mem_addr = skb;
@@ -386,6 +400,7 @@ arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 	skb->len = sizeof (*arp) + dev->hard_header_len + 2*dev->addr_len+8;
 	skb->next = NULL;
 
+	/* 构建二层头 */
 	tmp = dev->hard_header ((unsigned char *)(skb+1), dev,
 			ETHERTYPE_ARP, 0, saddr, skb->len);
 	if (tmp < 0)
@@ -394,6 +409,7 @@ arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 		return;
 	}
 
+	/* 设置ARP报文，TODO: next... */
 	arp =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
 	arp->hrd = net16(dev->type);
 	arp->pro = NET16(ARP_IP_PROT);
@@ -410,6 +426,8 @@ arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 }
 
 /*
+ * 查找ARP地址，将找到的MAC地址放到haddr中，找到返回 0 ，没找到返回 1.
+ *
  * haddr	输出参数，获取到的二层地址
  * paddr	对端IP地址
  * dev  	本地设备
@@ -433,6 +451,10 @@ arp_find(unsigned char *haddr, unsigned long paddr, struct device *dev,
 		/* make sure it's not too old. If it is too old, we will
 		   just pretend we did not find it, and then arp_snd
 		   will verify the address for us. */
+		/*
+		 * 确保arp表没有老化，如果老化了，假装没有找到这个地址，然后
+		 * arp_snd()会重新为我们确认这个地址.
+		 */
 		if (!before (apt->last_used, timer_seq+ARP_TIMEOUT) &&
 				apt->hlen != 0)
 		{
@@ -442,8 +464,7 @@ arp_find(unsigned char *haddr, unsigned long paddr, struct device *dev,
 		}
 	}
 
-	/* if we didn't find an entry, we will try to 
-	   send an arp packet. */
+	/* if we didn't find an entry, we will try to send an arp packet. */
 	if (apt == NULL || after (timer_seq, apt->last_used+ARP_RES_TIME))
 		arp_snd(paddr,dev,saddr);
 
@@ -470,6 +491,7 @@ arp_add (unsigned long addr, unsigned char *haddr, struct device *dev)
 	{
 		/* 更新时间戳 */
 		apt->last_used = timer_seq;
+		/* 更新mac地址 */
 		memcpy (apt->hard, haddr , dev->addr_len);
 		return;
 	}
@@ -481,7 +503,6 @@ arp_add_broad (unsigned long addr, struct device *dev)
 {
 	arp_add (addr,  dev->broadcast , dev);
 }
-
 
 /*
  * 无法构建二层头的包文，需要先将包文发送arp_q 队列中，等待能够获取到
