@@ -45,38 +45,42 @@
 static struct arp_table *arp_table[ARP_TABLE_SIZE] ={NULL, };
 static struct sk_buff *arp_q=NULL;
 
+/* 尝试重新发送在ARP队列中的报文 */
 /* this will try to retransmit everything on the queue. */
 static void
 send_arp_q(void)
 {
-   struct sk_buff *skb;
-   if (arp_q == NULL) return;
+	struct sk_buff *skb;
+	if (arp_q == NULL)
+		return;
 
-   skb = arp_q;
-   do {
-      if (!skb->dev->rebuild_header (skb+1, skb->dev))
-	{
-	   if (skb->next == skb)
-	     {
-		arp_q = NULL;
-	     }
-	   else
-	     {
-		skb->next->prev = skb->prev;
-		skb->prev->next = skb->next;
-		arp_q = skb->next;
-	     }
-	   skb->next = NULL;
-	   skb->prev = NULL;
-	   skb->arp  = 1;
-	   skb->dev->queue_xmit (skb, skb->dev, 0);
-	   if (arp_q == NULL) break;
-	   skb = arp_q;
-	   continue;
-	}
-      skb=skb->next;
-   } while (skb != arp_q);
-
+	skb = arp_q;
+	do {
+		if (!skb->dev->rebuild_header (skb+1, skb->dev))
+		{
+			if (skb->next == skb)
+			{
+				arp_q = NULL;
+			}
+			else
+			{
+				/* skb 从链表中删除 */
+				skb->next->prev = skb->prev;
+				skb->prev->next = skb->next;
+				arp_q = skb->next;
+			}
+			skb->next = NULL;
+			skb->prev = NULL;
+			skb->arp  = 1;
+			skb->dev->queue_xmit (skb, skb->dev, 0);
+			if (arp_q == NULL)
+				break;
+			skb = arp_q;
+			continue;
+		}
+		/* 处理一下个报文 */
+		skb=skb->next;
+	} while (skb != arp_q);
 }
 
 static  void
@@ -109,44 +113,47 @@ print_arp(struct arp *arp)
   PRINTK (" destination paddr = %X\n",*lptr);
 }
 
+/* 源mac地址 (h - hardware) */
 static  unsigned char *
 arp_sourceh(struct arp *arp)
 {
-  unsigned char *ptr;
-  ptr = (unsigned char *)(arp + 1);
-  return (ptr);
+	unsigned char *ptr;
+	ptr = (unsigned char *)(arp + 1);
+	return (ptr);
 }
 
+/* 目标mac地址 */
 static  unsigned char *
 arp_targeth(struct arp *arp)
 {
-  unsigned char *ptr;
-  ptr = (unsigned char *)(arp + 1);
-  ptr += arp->hlen+4;
-  return (ptr);
+	unsigned char *ptr;
+	ptr = (unsigned char *)(arp + 1);
+	ptr += arp->hlen+4;
+	return (ptr);
 }
 
+/* 源IP地址 */
 static  unsigned long *
 arp_sourcep(struct arp *arp)
 {
-  unsigned long *lptr;
-  unsigned char *ptr;
-  ptr = (unsigned char *)(arp + 1);
-  ptr += arp->hlen;
-  lptr = (unsigned long *)ptr;
-  return (lptr);
+	unsigned long *lptr;
+	unsigned char *ptr;
+	ptr = (unsigned char *)(arp + 1);
+	ptr += arp->hlen;
+	lptr = (unsigned long *)ptr;
+	return (lptr);
 }
 
-
+/* 源mac地址 */
 static  unsigned long *
 arp_targetp(struct arp *arp)
 {
-  unsigned long *lptr;
-  unsigned char *ptr;
-  ptr = (unsigned char *)(arp + 1);
-  ptr += 2*arp->hlen+4;
-  lptr = (unsigned long *)ptr;
-  return (lptr);
+	unsigned long *lptr;
+	unsigned char *ptr;
+	ptr = (unsigned char *)(arp + 1);
+	ptr += 2*arp->hlen+4;
+	lptr = (unsigned long *)ptr;
+	return (lptr);
 }
 
 static  void
@@ -164,47 +171,50 @@ arp_malloc (unsigned long amount)
 static  int
 arp_response (struct arp *arp1, struct device *dev)
 {
-  struct arp *arp2;
-  struct sk_buff *skb;
-  int tmp;
+	struct arp *arp2;
+	struct sk_buff *skb;
+	int tmp;
 
-  /* get some mem and initialize it for the return trip. */
-  skb = arp_malloc (sizeof (*skb) + sizeof (*arp2) +
-		    2*arp1->hlen + 2*arp1->plen + dev->hard_header_len);
-  if (skb == NULL) return (1);
+	/* get some mem and initialize it for the return trip. */
+	skb = arp_malloc (sizeof (*skb) + sizeof (*arp2) +
+			2*arp1->hlen + 2*arp1->plen + dev->hard_header_len);
+	if (skb == NULL)
+		return (1);
 
-  skb->mem_addr = skb;
-  skb->mem_len = sizeof (*skb) + sizeof (*arp2) + 2*arp1->hlen + 
-    2*arp1->plen + dev->hard_header_len;
-  skb->len = sizeof (*arp2) + 2*arp1->hlen + 
-    2*arp1->plen + dev->hard_header_len;
+	skb->mem_addr = skb;
+	skb->mem_len = sizeof (*skb) + sizeof (*arp2) + 2*arp1->hlen + 
+		2*arp1->plen + dev->hard_header_len;
+	skb->len = sizeof (*arp2) + 2*arp1->hlen + 
+		2*arp1->plen + dev->hard_header_len;
 
-  tmp = dev->hard_header((unsigned char *)(skb+1), dev,
-			 ETHERTYPE_ARP, *arp_sourcep(arp1),
-			 *arp_targetp(arp1),skb->len);
+	tmp = dev->hard_header((unsigned char *)(skb+1), dev,
+			ETHERTYPE_ARP, *arp_sourcep(arp1),
+			*arp_targetp(arp1),skb->len);
 
-  if (tmp < 0) return (1);
+	if (tmp < 0)
+		return (1);
 
-  arp2 =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
-  memcpy (arp2, arp1, sizeof (*arp2));
+	/* arp头的信息，request和reply除了opcode都是一样的 */
+	arp2 =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
+	memcpy (arp2, arp1, sizeof (*arp2));
 
-  /* now swap the addresses. */
-  *arp_sourcep(arp2) = *arp_targetp(arp1);
-  memcpy(arp_sourceh(arp2), dev->dev_addr, arp1->hlen);
+	/* now swap the addresses. */
+	*arp_sourcep(arp2) = *arp_targetp(arp1);
+	memcpy(arp_sourceh(arp2), dev->dev_addr, arp1->hlen);
 
-  *arp_targetp(arp2) = *arp_sourcep(arp1);
-  memcpy(arp_targeth(arp2), arp_sourceh(arp1), arp1->hlen);
+	*arp_targetp(arp2) = *arp_sourcep(arp1);
+	memcpy(arp_targeth(arp2), arp_sourceh(arp1), arp1->hlen);
 
-  arp2->op = NET16(ARP_REPLY);
-  skb->free = 1;
-  skb->arp = 1; /* so the code will know it's not waiting on an arp. */
-  skb->sk = NULL;
-  skb->next = NULL;
-  PRINTK (">>");
-  print_arp(arp2);
-  /* send it. */
-  dev->queue_xmit (skb, dev, 0);
-  return (0);
+	arp2->op = NET16(ARP_REPLY);
+	skb->free = 1;
+	skb->arp = 1; /* so the code will know it's not waiting on an arp. */
+	skb->sk = NULL;
+	skb->next = NULL;
+	PRINTK (">>");
+	print_arp(arp2);
+	/* send it. */
+	dev->queue_xmit (skb, dev, 0);
+	return (0);
 }
 
 /* 通过查询IP地址获取ARP表项 */
@@ -237,41 +247,41 @@ arp_lookup (unsigned long paddr)
 void
 arp_destroy(unsigned long paddr)
 {
-  unsigned long hash;
-  struct arp_table *apt;
-  struct arp_table *lapt;
-  PRINTK ("arp_destroy (paddr=%X)\n",paddr);
-  /* we don't want to destroy are own arp */
-  if (my_ip_addr(paddr)) return;
-  hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
+	unsigned long hash;
+	struct arp_table *apt;
+	struct arp_table *lapt;
+	PRINTK ("arp_destroy (paddr=%X)\n",paddr);
+	/* we don't want to destroy are own arp */
+	if (my_ip_addr(paddr)) return;
+	hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
 
-  cli(); /* can't be interrupted. */
-  /* make sure there is something there. */
-  if (arp_table[hash] == NULL) return;
+	cli(); /* can't be interrupted. */
+	/* make sure there is something there. */
+	if (arp_table[hash] == NULL) return;
 
-  /* check the first one. */
-  if (arp_table[hash]->ip == paddr)
-    {
-      apt = arp_table[hash];
-      arp_table[hash] = arp_table[hash]->next;
-      arp_free (apt, sizeof (*apt));
-      sti();
-      return;
-    }
-
-  /* now deal with it any where else in the chain. */
-  lapt = arp_table[hash];
-  for (apt = arp_table[hash]->next; apt != NULL; apt = apt->next)
-    {
-      if (apt->ip == paddr) 
+	/* check the first one. */
+	if (arp_table[hash]->ip == paddr)
 	{
-	  lapt->next = apt->next;
-	  arp_free (apt, sizeof (*apt));
-	  sti();
-	  return;
+		apt = arp_table[hash];
+		arp_table[hash] = arp_table[hash]->next;
+		arp_free (apt, sizeof (*apt));
+		sti();
+		return;
 	}
-    }
-  sti();
+
+	/* now deal with it any where else in the chain. */
+	lapt = arp_table[hash];
+	for (apt = arp_table[hash]->next; apt != NULL; apt = apt->next)
+	{
+		if (apt->ip == paddr) 
+		{
+			lapt->next = apt->next;
+			arp_free (apt, sizeof (*apt));
+			sti();
+			return;
+		}
+	}
+	sti();
 }
 
 /*
@@ -309,59 +319,61 @@ create_arp (unsigned long paddr, unsigned char *addr, int hlen)
 int
 arp_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 {
-   struct arp *arp;
-   struct arp_table *tbl;
-   int ret;
+	struct arp *arp;
+	struct arp_table *tbl;
+	int ret;
 
-   PRINTK ("<<\n");
-   arp = skb->h.arp;
-   print_arp(arp);
+	PRINTK ("<<\n");
+	/* dev.c 中设置，skb->h.raw */
+	arp = skb->h.arp;
+	print_arp(arp);
 
-  /* if this test doesn't pass, something fishy is going on. */
-  if (arp->hlen != dev->addr_len || dev->type !=NET16( arp->hrd))
-    {
-       free_skb(skb, FREE_READ);
-       return (0);
-    }
+	/* if this test doesn't pass, something fishy is going on. */
+	if (arp->hlen != dev->addr_len || dev->type !=NET16( arp->hrd))
+	{
+		free_skb(skb, FREE_READ);
+		return (0);
+	}
 
-  /* for now we will only deal with ip addresses. */
-  if (arp->pro != NET16(ARP_IP_PROT) || arp->plen != 4)
-    {
-       free_skb (skb, FREE_READ);
-       return (0);
-    }
+	/* for now we will only deal with ip addresses. */
+	if (arp->pro != NET16(ARP_IP_PROT) || arp->plen != 4)
+	{
+		free_skb (skb, FREE_READ);
+		return (0);
+	}
 
-  /* now look up the ip address in the table. */
-  tbl = arp_lookup (*arp_sourcep(arp));
-  if (tbl != NULL)
-    {
-       memcpy (tbl->hard, arp+1, arp->hlen);
-       tbl->hlen = arp->hlen;
-       tbl->last_used = timer_seq;
-    }
+	/* now look up the ip address in the table. */
+	tbl = arp_lookup (*arp_sourcep(arp));
+	if (tbl != NULL)
+	{
+		memcpy (tbl->hard, arp+1, arp->hlen);
+		tbl->hlen = arp->hlen;
+		tbl->last_used = timer_seq;
+	}
 
-  if (!my_ip_addr(*arp_targetp(arp)))
-    {
-       free_skb (skb, FREE_READ);
-       return (0);
-    }
+	if (!my_ip_addr(*arp_targetp(arp)))
+	{
+		free_skb (skb, FREE_READ);
+		return (0);
+	}
 
-  if (tbl == NULL)
-    create_arp (*arp_sourcep(arp), arp_sourceh(arp), arp->hlen);
+	if (tbl == NULL)
+		create_arp (*arp_sourcep(arp), arp_sourceh(arp), arp->hlen);
 
-   /* now see if we can send anything. */
-   send_arp_q();
-     
-  if (arp->op != NET16(ARP_REQUEST))
-    {
-       free_skb (skb, FREE_READ);
-       return (0);
-    }
+	/* now see if we can send anything. */
+	send_arp_q();
 
-  /* now we need to create a new packet. */
-   ret = arp_response(arp, dev);
-   free_skb (skb, FREE_READ);
-   return (ret);
+	/* 如果不是ARP请求 */
+	if (arp->op != NET16(ARP_REQUEST))
+	{
+		free_skb (skb, FREE_READ);
+		return (0);
+	}
+
+	/* now we need to create a new packet. */
+	ret = arp_response(arp, dev);
+	free_skb (skb, FREE_READ);
+	return (ret);
 }
 
 /*
@@ -409,8 +421,9 @@ arp_snd (unsigned long paddr, struct device *dev, unsigned long saddr)
 		return;
 	}
 
-	/* 设置ARP报文，TODO: next... */
+	/* 构建ARP报文 */
 	arp =(struct arp *) ((unsigned char *)skb+sizeof (*skb) + tmp );
+	/* net16() 小端转网络字节序，NET16() 实现相同功能，常量的时候使用NET16()能够提高效率 */
 	arp->hrd = net16(dev->type);
 	arp->pro = NET16(ARP_IP_PROT);
 	arp->hlen = dev->addr_len;

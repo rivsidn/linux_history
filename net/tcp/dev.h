@@ -82,6 +82,13 @@ struct device
 
 extern struct device *dev_base;
 
+/*
+ * type		报文类型
+ * copy
+ * func		报文处理函数
+ * data
+ * next		下一个协议处理
+ */
 struct packet_type
 {
 	unsigned short type; /* This is really NET16(ether_type) other devices

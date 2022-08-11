@@ -29,11 +29,11 @@ extern int arp_rcv (struct sk_buff *skb, struct device *dev,
 
 static struct packet_type arp_packet_type=
 {
-   NET16(ETHERTYPE_ARP),
-   0, /* copy */
-   arp_rcv,
-   NULL,
-   NULL /* next */
+	NET16(ETHERTYPE_ARP),
+	0, /* copy */
+	arp_rcv,
+	NULL,
+	NULL /* next */
 };
 
 extern int ip_rcv (struct sk_buff *skb, struct device *dev,
@@ -41,11 +41,11 @@ extern int ip_rcv (struct sk_buff *skb, struct device *dev,
 
 static struct packet_type ip_packet_type=
 {
-   NET16(ETHERTYPE_IP),
-   0, /* copy */
-   ip_rcv,
-   NULL,
-   &arp_packet_type
+	NET16(ETHERTYPE_IP),
+	0, /* copy */
+	ip_rcv,
+	NULL,
+	&arp_packet_type
 };
    
 struct packet_type *ptype_base = &ip_packet_type;

@@ -150,9 +150,7 @@ struct sk_buff
 	unsigned long saddr;
 	unsigned long daddr;
 	/*
-	 * arp		arp包文，设置该数值为1，表示该包文不需要发送arp.
-	 * 		其他已经能够构建二层头的包文设置该值为1 表示不需
-	 * 		要发送arp 包
+	 * arp		包文不会在arp队列中等待
 	 */
 	unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
 };
