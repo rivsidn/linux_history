@@ -29,6 +29,7 @@ struct socket {
 	socket_state state;
 	long flags;
 	struct proto_ops *ops;		/* protocols do most everything */
+					/* 不同协议族对应不同的ops */
 	void *data;			/* protocol data */
 	struct socket *conn;		/* server socket connected to */
 	struct socket *iconn;		/* incomplete client connections */

@@ -97,28 +97,28 @@ static int ip_proto_fcntl (struct socket *sock, unsigned int cmd,
 
 struct proto_ops inet_proto_ops = 
 {
-  ip_proto_init,
-  ip_proto_create,
-  ip_proto_dup,
-  ip_proto_release,
-  ip_proto_bind,
-  ip_proto_connect,
-  ip_proto_socketpair,
-  ip_proto_accept,
-  ip_proto_getname, 
-  ip_proto_read,
-  ip_proto_write,
-  ip_proto_select,
-  ip_proto_ioctl,
-  ip_proto_listen,
-  ip_proto_send,
-  ip_proto_recv,
-  ip_proto_sendto,
-  ip_proto_recvfrom,
-  ip_proto_shutdown,
-  ip_proto_setsockopt,
-  ip_proto_getsockopt,
-  ip_proto_fcntl
+	ip_proto_init,
+	ip_proto_create,
+	ip_proto_dup,
+	ip_proto_release,
+	ip_proto_bind,
+	ip_proto_connect,
+	ip_proto_socketpair,
+	ip_proto_accept,
+	ip_proto_getname, 
+	ip_proto_read,
+	ip_proto_write,
+	ip_proto_select,
+	ip_proto_ioctl,
+	ip_proto_listen,
+	ip_proto_send,
+	ip_proto_recv,
+	ip_proto_sendto,
+	ip_proto_recvfrom,
+	ip_proto_shutdown,
+	ip_proto_setsockopt,
+	ip_proto_getsockopt,
+	ip_proto_fcntl
 };
 
 void
@@ -692,185 +692,185 @@ static int ip_proto_init(void)
 static int
 ip_proto_create (struct socket *sock, int protocol)
 {
-  volatile struct sock *sk;
-  struct proto *prot;
-  int err;
+	volatile struct sock *sk;
+	struct proto *prot;
+	int err;
 
-  sk = malloc (sizeof (*sk));
-  if (sk == NULL)
-    return (-ENOMEM);
-  sk->num = 0;
+	sk = malloc (sizeof (*sk));
+	if (sk == NULL)
+		return (-ENOMEM);
+	sk->num = 0;
 
 
-  switch (sock->type)
-    {
-    case SOCK_STREAM:
-    case SOCK_SEQPACKET:
-       if (protocol && protocol != IP_TCP)
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPROTONOSUPPORT);
-	 }
-       sk->no_check = TCP_NO_CHECK;
-       prot = &tcp_prot;
-       break;
+	switch (sock->type)
+	{
+		case SOCK_STREAM:
+		case SOCK_SEQPACKET:
+			if (protocol && protocol != IP_TCP)
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPROTONOSUPPORT);
+			}
+			sk->no_check = TCP_NO_CHECK;
+			prot = &tcp_prot;
+			break;
 
-    case SOCK_DGRAM:
-       if (protocol && protocol != IP_UDP)
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPROTONOSUPPORT);
-	 }
-       sk->no_check = UDP_NO_CHECK;
-       prot=&udp_prot;
-       break;
-      
-     case SOCK_RAW:
-       if (!suser())
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPERM);
-	 }
+		case SOCK_DGRAM:
+			if (protocol && protocol != IP_UDP)
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPROTONOSUPPORT);
+			}
+			sk->no_check = UDP_NO_CHECK;
+			prot=&udp_prot;
+			break;
 
-       if (!protocol)
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPROTONOSUPPORT);
-	 }
-       prot = &raw_prot;
-       sk->reuse = 1;
-       sk->no_check = 0; /* doesn't matter no checksum is preformed
-			    anyway. */
-       sk->num = protocol;
-       break;
+		case SOCK_RAW:
+			if (!suser())
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPERM);
+			}
 
-    case SOCK_PACKET:
-       if (!suser())
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPERM);
-	 }
+			if (!protocol)
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPROTONOSUPPORT);
+			}
+			prot = &raw_prot;
+			sk->reuse = 1;
+			sk->no_check = 0; /* doesn't matter no checksum is preformed
+					     anyway. */
+			sk->num = protocol;
+			break;
 
-       if (!protocol)
-	 {
-	    free_s ((void *)sk, sizeof (*sk));
-	    return (-EPROTONOSUPPORT);
-	 }
-       prot = &packet_prot;
-       sk->reuse = 1;
-       sk->no_check = 0; /* doesn't matter no checksum is preformed
-			    anyway. */
-       sk->num = protocol;
-       break;
+		case SOCK_PACKET:
+			if (!suser())
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPERM);
+			}
 
-      
-    default:
-       free_s ((void *)sk, sizeof (*sk));
-       return (-ESOCKTNOSUPPORT);
+			if (!protocol)
+			{
+				free_s ((void *)sk, sizeof (*sk));
+				return (-EPROTONOSUPPORT);
+			}
+			prot = &packet_prot;
+			sk->reuse = 1;
+			sk->no_check = 0; /* doesn't matter no checksum is preformed
+					     anyway. */
+			sk->num = protocol;
+			break;
 
-    }
-  sk->protocol = protocol;
-  sk->wmem_alloc = 0;
-  sk->rmem_alloc = 0;
-  sk->pair = NULL;
-  sk->opt = NULL;
-  sk->send_seq = 0;
-  sk->acked_seq = 0;
-  sk->copied_seq = 0;
-  sk->fin_seq = 0;
-  sk->proc = 0;
-  sk->rtt = TCP_WRITE_TIME;
-  sk->packets_out = 0;
-  sk->cong_window = 1; /* start with only sending one packet at a time. */
-  sk->exp_growth = 1;  /* if set cong_window grow exponentially every time
-			  we get an ack. */
-  sk->urginline = 0;
-  sk->intr = 0;
-  sk->linger = 0;
-  sk->destroy = 0;
-  sk->reuse = 0;
-  sk->priority = 1;
-  sk->shutdown = 0;
-  sk->urg = 0;
-  sk->keepopen = 0;
-  sk->done = 0;
-  sk->ack_backlog = 0;
-  sk->window = 0;
-  sk->bytes_rcv = 0;
-  sk->state = TCP_CLOSE;
-  sk->dead = 0;
-  sk->ack_timed = 0;
 
-  /* this is how many unacked bytes we will accept for
-     this socket.  */
+		default:
+			free_s ((void *)sk, sizeof (*sk));
+			return (-ESOCKTNOSUPPORT);
 
-  sk->max_unacked = 2048; /* needs to be at most 2 full packets. */
+	}
+	sk->protocol = protocol;
+	sk->wmem_alloc = 0;
+	sk->rmem_alloc = 0;
+	sk->pair = NULL;
+	sk->opt = NULL;
+	sk->send_seq = 0;
+	sk->acked_seq = 0;
+	sk->copied_seq = 0;
+	sk->fin_seq = 0;
+	sk->proc = 0;
+	sk->rtt = TCP_WRITE_TIME;
+	sk->packets_out = 0;
+	sk->cong_window = 1; /* start with only sending one packet at a time. */
+	sk->exp_growth = 1;  /* if set cong_window grow exponentially every time
+				we get an ack. */
+	sk->urginline = 0;
+	sk->intr = 0;
+	sk->linger = 0;
+	sk->destroy = 0;
+	sk->reuse = 0;
+	sk->priority = 1;
+	sk->shutdown = 0;
+	sk->urg = 0;
+	sk->keepopen = 0;
+	sk->done = 0;
+	sk->ack_backlog = 0;
+	sk->window = 0;
+	sk->bytes_rcv = 0;
+	sk->state = TCP_CLOSE;
+	sk->dead = 0;
+	sk->ack_timed = 0;
 
-  /* how many packets we should send before forcing an ack. 
-     if this is set to zero it is the same as sk->delay_acks = 0 */
+	/* this is how many unacked bytes we will accept for
+	   this socket.  */
 
-  sk->max_ack_backlog = MAX_ACK_BACKLOG;
-  sk->inuse = 0;
-  sk->delay_acks = 1; /* default to waiting a while before sending
-			 acks.  */
-  sk->wback = NULL;
-  sk->wfront = NULL;
-  sk->rqueue = NULL;
-  sk->mtu = 576;
-  sk->prot = prot;
-  sk->sleep = sock->wait;
-  sk->daddr = 0;
-  sk->saddr = MY_IP_ADDR;
-  sk->err = 0;
-  sk->next = NULL;
-  sk->pair = NULL;
-  sk->send_tail = NULL;
-  sk->send_head = NULL;
-  sk->time_wait.len = TCP_CONNECT_TIME;
-  sk->time_wait.when = 0;
-  sk->time_wait.sk = sk;
-  sk->time_wait.next = NULL;
-  sk->timeout = 0;
-  sk->back_log = NULL;
-  sk->blog = 0;
-  sock->data =(void *) sk;
-  sk->dummy_th.doff = sizeof (sk->dummy_th)/4;
-  sk->dummy_th.res1=0;
-  sk->dummy_th.res2=0;
-  sk->dummy_th.urg_ptr = 0;
-  sk->dummy_th.fin = 0;
-  sk->dummy_th.syn = 0;
-  sk->dummy_th.rst = 0;
-  sk->dummy_th.psh = 0;
-  sk->dummy_th.ack = 0;
-  sk->dummy_th.urg = 0;
-  sk->dummy_th.dest = 0;
-  if (sk->num)
-    {
-       put_sock (sk->num, sk);
-    }
-  else
-    {
-       sk->num = get_new_socknum(sk->prot, 0);
-    }
-  /* make sure there was a free socket. */
-  if (sk->num == 0)
-    {
-      destroy_sock(sk);
-      return (-EAGAIN);
-    }
-  put_sock(sk->num, sk);
-  sk->dummy_th.source = net16(sk->num);
-  if (sk->prot->init)
-    {
-       err = sk->prot->init(sk);
-       if (err != 0)
-	 {
-	    destroy_sock (sk);
-	    return (err);
-	 }
-    }
-  return (0);
+	sk->max_unacked = 2048; /* needs to be at most 2 full packets. */
+
+	/* how many packets we should send before forcing an ack. 
+	   if this is set to zero it is the same as sk->delay_acks = 0 */
+
+	sk->max_ack_backlog = MAX_ACK_BACKLOG;
+	sk->inuse = 0;
+	sk->delay_acks = 1; /* default to waiting a while before sending
+			       acks.  */
+	sk->wback = NULL;
+	sk->wfront = NULL;
+	sk->rqueue = NULL;
+	sk->mtu = 576;
+	sk->prot = prot;
+	sk->sleep = sock->wait;
+	sk->daddr = 0;
+	sk->saddr = MY_IP_ADDR;
+	sk->err = 0;
+	sk->next = NULL;
+	sk->pair = NULL;
+	sk->send_tail = NULL;
+	sk->send_head = NULL;
+	sk->time_wait.len = TCP_CONNECT_TIME;
+	sk->time_wait.when = 0;
+	sk->time_wait.sk = sk;
+	sk->time_wait.next = NULL;
+	sk->timeout = 0;
+	sk->back_log = NULL;
+	sk->blog = 0;
+	sock->data =(void *) sk;
+	sk->dummy_th.doff = sizeof (sk->dummy_th)/4;
+	sk->dummy_th.res1=0;
+	sk->dummy_th.res2=0;
+	sk->dummy_th.urg_ptr = 0;
+	sk->dummy_th.fin = 0;
+	sk->dummy_th.syn = 0;
+	sk->dummy_th.rst = 0;
+	sk->dummy_th.psh = 0;
+	sk->dummy_th.ack = 0;
+	sk->dummy_th.urg = 0;
+	sk->dummy_th.dest = 0;
+	if (sk->num)
+	{
+		put_sock (sk->num, sk);
+	}
+	else
+	{
+		sk->num = get_new_socknum(sk->prot, 0);
+	}
+	/* make sure there was a free socket. */
+	if (sk->num == 0)
+	{
+		destroy_sock(sk);
+		return (-EAGAIN);
+	}
+	put_sock(sk->num, sk);
+	sk->dummy_th.source = net16(sk->num);
+	if (sk->prot->init)
+	{
+		err = sk->prot->init(sk);
+		if (err != 0)
+		{
+			destroy_sock (sk);
+			return (err);
+		}
+	}
+	return (0);
 }
 
 static int

@@ -16,6 +16,7 @@
 
 extern int sys_close(int fd);
 
+/* 对应不同的family 类型 */
 extern struct proto_ops unix_proto_ops;
 #ifdef INET_SOCKETS
 extern struct proto_ops inet_proto_ops;
@@ -31,6 +32,7 @@ static struct {
 	{AF_INET,	"AF_INET",	&inet_proto_ops},
 #endif
 };
+/* 支持的协议数量 */
 #define NPROTO (sizeof(proto_table) / sizeof(proto_table[0]))
 
 static char *
@@ -402,6 +404,7 @@ sock_socket(int family, int type, int protocol)
 
 	/*
 	 * locate the correct protocol family
+	 * 获取正确的协议族
 	 */
 	for (i = 0; i < NPROTO; ++i)
 		if (proto_table[i].family == family)

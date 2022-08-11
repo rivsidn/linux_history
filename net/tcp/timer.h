@@ -22,12 +22,16 @@
 #ifndef _TCP_TIMER_H
 #define _TCP_TIMER_H
 
+/*
+ * len		定时器时长
+ * wheh		定时器超时时间，jiffies + len
+ */
 struct timer
 {
-  unsigned long len;
-  volatile struct sock *sk;
-  unsigned long when;
-  struct timer *next;
+	unsigned long len;
+	volatile struct sock *sk;
+	unsigned long when;
+	struct timer *next;
 };
 
 

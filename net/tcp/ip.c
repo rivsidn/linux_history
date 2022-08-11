@@ -47,6 +47,7 @@ unsigned long ip_addr[MAX_IP_ADDRES]={0,0,0};
 
 static struct rtable *rt_base=NULL; /* used to base all the routing data. */
 
+/* ip层协议接口 */
 struct ip_protocol *ip_protos[MAX_IP_PROTOS] = { NULL, };
 
 #if 0
@@ -610,48 +611,49 @@ do_options(struct ip_header *iph, struct options *opt)
 /* This routine does all the checksum computations that don't require
    anything special (like copying or special headers.) */
 
+/* 计算IP校验和 */
 unsigned short
 ip_compute_csum(unsigned char * buff, int len)
 {
-  unsigned long sum = 0;
-  if (len > 3)
-    {
-       /* do the first multiple of 4 bytes and convert to 16 bits. */
-       __asm__("\t clc\n"
-	       "1:\n"
-	       "\t lodsl\n"
-	       "\t adcl %%eax, %%ebx\n"
-	       "\t loop 1b\n"
-	       "\t adcl $0, %%ebx\n"
-	       "\t movl %%ebx, %%eax\n"
-	       "\t shrl $16, %%eax\n"
-	       "\t addw %%ax, %%bx\n"
-	       "\t adcw $0, %%bx\n"
-	       : "=b" (sum) , "=S" (buff)
-	       : "0" (sum), "c" (len >> 2) ,"1" (buff)
-	       : "ax", "cx", "si", "bx" );
-    }
-  if (len & 2)
-    {
-       __asm__("\t lodsw\n"
-	       "\t addw %%ax, %%bx\n"
-	       "\t adcw $0, %%bx\n"
-	       : "=b" (sum), "=S" (buff)
-	       : "0" (sum), "1" (buff)
-	       : "bx", "ax", "si");
-    }
-  if (len & 1)
-    {
-       __asm__("\t lodsb\n"
-	       "\t movb $0, %%ah\n"
-	       "\t addw %%ax, %%bx\n"
-	       "\t adcw $0, %%bx\n"
-	       : "=b" (sum), "=S" (buff)
-	       : "0" (sum), "1" (buff)
-	       : "bx", "ax", "si");
-    }
-  sum =~sum;
-  return (sum&0xffff);
+	unsigned long sum = 0;
+	if (len > 3)
+	{
+		/* do the first multiple of 4 bytes and convert to 16 bits. */
+		__asm__("\t clc\n"
+				"1:\n"
+				"\t lodsl\n"
+				"\t adcl %%eax, %%ebx\n"
+				"\t loop 1b\n"
+				"\t adcl $0, %%ebx\n"
+				"\t movl %%ebx, %%eax\n"
+				"\t shrl $16, %%eax\n"
+				"\t addw %%ax, %%bx\n"
+				"\t adcw $0, %%bx\n"
+				: "=b" (sum) , "=S" (buff)
+				: "0" (sum), "c" (len >> 2) ,"1" (buff)
+				: "ax", "cx", "si", "bx" );
+	}
+	if (len & 2)
+	{
+		__asm__("\t lodsw\n"
+				"\t addw %%ax, %%bx\n"
+				"\t adcw $0, %%bx\n"
+				: "=b" (sum), "=S" (buff)
+				: "0" (sum), "1" (buff)
+				: "bx", "ax", "si");
+	}
+	if (len & 1)
+	{
+		__asm__("\t lodsb\n"
+				"\t movb $0, %%ah\n"
+				"\t addw %%ax, %%bx\n"
+				"\t adcw $0, %%bx\n"
+				: "=b" (sum), "=S" (buff)
+				: "0" (sum), "1" (buff)
+				: "bx", "ax", "si");
+	}
+	sum =~sum;
+	return (sum&0xffff);
 }
 
 static  int
@@ -665,8 +667,8 @@ ip_csum(struct ip_header *iph)
 static  void
 ip_send_check(struct ip_header *iph)
 {
-   iph->check = 0;
-   iph->check = ip_compute_csum((unsigned char *)iph, iph->ihl*4);
+	iph->check = 0;
+	iph->check = ip_compute_csum((unsigned char *)iph, iph->ihl*4);
 }
 
 int
@@ -765,113 +767,126 @@ void
 ip_queue_xmit (volatile struct sock *sk, struct device *dev, 
 	       struct sk_buff *skb, int free)
 {
-  struct ip_header *iph;
-  unsigned char *ptr;
-  if (sk == NULL) free = 1;
-  skb->free = free;
-  skb->dev = dev;
-  skb->when = jiffies;
-  PRINTK(">>\n");
-  ptr = (unsigned char *)(skb + 1);
-  ptr += dev->hard_header_len;
-  iph = (struct ip_header *)ptr;
-  iph->tot_len = net16(skb->len-dev->hard_header_len);
-  ip_send_check (iph);
-  print_iph(iph);
-  skb->next = NULL;
-  if (!free)
-    {
-      skb->link3 = NULL;
-      sk->packets_out++;
-      cli();
-      if (sk->send_tail == NULL)
+	struct ip_header *iph;
+	unsigned char *ptr;
+	if (sk == NULL)
+		free = 1;
+	skb->free = free;
+	skb->dev = dev;
+	skb->when = jiffies;
+	PRINTK(">>\n");
+	ptr = (unsigned char *)(skb + 1);	//获取data指针
+	ptr += dev->hard_header_len;		//+ 二层头长度
+	iph = (struct ip_header *)ptr;
+	/* 设置报文总长度 */
+	iph->tot_len = net16(skb->len-dev->hard_header_len);
+	/* 计算数据校验和 */
+	ip_send_check (iph);
+	print_iph(iph);
+	skb->next = NULL;
+	if (!free)
 	{
-	  sk->send_tail = skb;
-	  sk->send_head = skb;
+		/* sk 必定不为空 */
+		skb->link3 = NULL;
+		sk->packets_out++;
+		cli();
+		/*
+		 * 将skb添加到队列中，是一个通过skb{}->link3链接起来的单向链表，
+		 * send_tail指向链表的尾部，send_head 指向链表的头部.
+		 */
+		if (sk->send_tail == NULL)
+		{
+			sk->send_tail = skb;
+			sk->send_head = skb;
+		}
+		else
+		{
+			sk->send_tail->link3 = skb;
+			sk->send_tail = skb;
+		}
+		sti();
+		/* 定时器时长 */
+		sk->time_wait.len = sk->rtt*2;
+		sk->timeout=TIME_WRITE;
+		reset_timer ((struct timer *)&sk->time_wait);
 	}
-      else
+	else
 	{
-	  sk->send_tail->link3 = skb;
-	  sk->send_tail = skb;
+		/* sk 可能为空 */
+		skb->sk = sk;
 	}
-      sti();
-      sk->time_wait.len = sk->rtt*2;
-      sk->timeout=TIME_WRITE;
-      reset_timer ((struct timer *)&sk->time_wait);
-   }
-  else
-    {
-       skb->sk = sk;
-    }
-  if (dev->up)
-    {
-       if (sk)
-	 dev->queue_xmit(skb, dev, sk->priority);
-       else
-	 dev->queue_xmit (skb, dev, SOPRI_NORMAL);
-    }
-  else
-    {
-       if (free) 
-	 free_skb (skb, FREE_WRITE);
-    }
+	if (dev->up)
+	{
+		if (sk)
+			dev->queue_xmit(skb, dev, sk->priority);
+		else
+			dev->queue_xmit (skb, dev, SOPRI_NORMAL);
+	}
+	else
+	{
+		if (free) 
+			free_skb (skb, FREE_WRITE);
+	}
 }
 
 void
 ip_retransmit (volatile struct sock *sk, int all)
 {
-  struct sk_buff * skb;
-  struct proto *prot;
-  struct device *dev;
+	struct sk_buff * skb;
+	struct proto *prot;
+	struct device *dev;
 
-  prot = sk->prot;
-  skb = sk->send_head;
-  while (skb != NULL)
-    {
-      dev = skb->dev;
-      /* rebuild_header sees if the arp is done.  If not it sends a new
-	 arp, and if so it builds the header. */
-      if (!skb->arp)
+	prot = sk->prot;
+	skb = sk->send_head;
+	while (skb != NULL)
 	{
-	  if (dev->rebuild_header ((struct enet_header *)(skb+1),dev))
-	    {
-	       if (!all) break;
-	       skb=skb->link3;
-	       continue;
-	    }
-       }
-      skb->arp = 1;
-      skb->when = jiffies;
+		dev = skb->dev;
+		/* rebuild_header sees if the arp is done.  If not it sends a new
+		   arp, and if so it builds the header. */
+		if (!skb->arp)
+		{
+			if (dev->rebuild_header ((struct enet_header *)(skb+1),dev))
+			{
+				if (!all)
+					break;
+				skb=skb->link3;
+				continue;
+			}
+		}
+		skb->arp = 1;
+		skb->when = jiffies;
 
-      if (dev->up)
-	if (sk)
-	  dev->queue_xmit(skb, dev, sk->priority);
-	else
-	  dev->queue_xmit(skb, dev, SOPRI_NORMAL );
+		if (dev->up)
+			if (sk)
+				dev->queue_xmit(skb, dev, sk->priority);
+			else
+				dev->queue_xmit(skb, dev, SOPRI_NORMAL );
 
-      sk->retransmits++;
-      sk->prot->retransmits ++;
-      if (!all) break;
-      /* this should cut it off before we send too
-	 many packets. */
-      if (sk->retransmits > sk->cong_window) break;
-      skb=skb->link3;
-    }
-  sk->time_wait.len = sk->rtt*2;
-  sk->timeout = TIME_WRITE;
-  reset_timer ((struct timer *)&sk->time_wait);
+		sk->retransmits++;
+		sk->prot->retransmits ++;
+		if (!all)
+			break;
+		/* this should cut it off before we send too
+		   many packets. */
+		if (sk->retransmits > sk->cong_window)
+			break;
+		skb=skb->link3;
+	}
+	sk->time_wait.len = sk->rtt*2;
+	sk->timeout = TIME_WRITE;
+	reset_timer ((struct timer *)&sk->time_wait);
 }
 
 void
 print_iph (struct ip_header *ip)
 {
-  PRINTK ("ip header:\n");
-  PRINTK ("  ihl = %d, version = %d, tos = %d, tot_len = %d\n",
-	  ip->ihl, ip->version, ip->tos, net16(ip->tot_len));
-  PRINTK ("  id = %x, ttl = %d, prot = %d, check=%x\n",
-	  ip->id, ip->ttl, ip->protocol, ip->check);
-  PRINTK (" frag_off=%d\n", ip->frag_off);
-  PRINTK ("  saddr = %X, daddr = %X\n",ip->saddr, ip->daddr);
+	PRINTK ("ip header:\n");
+	PRINTK ("  ihl = %d, version = %d, tos = %d, tot_len = %d\n",
+			ip->ihl, ip->version, ip->tos, net16(ip->tot_len));
+	PRINTK ("  id = %x, ttl = %d, prot = %d, check=%x\n",
+			ip->id, ip->ttl, ip->protocol, ip->check);
+	PRINTK (" frag_off=%d\n", ip->frag_off);
+	PRINTK ("  saddr = %X, daddr = %X\n",ip->saddr, ip->daddr);
 }
 
 #if 0

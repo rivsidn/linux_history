@@ -27,94 +27,97 @@
 /* This structure really needs to be cleaned up.  Most of it is
    for tcp, and not used by any of the other protocols. */
 
-struct sock 
+struct sock
 {
-  struct options *opt;
-  unsigned long wmem_alloc;
-  unsigned long rmem_alloc;
-  unsigned long send_seq;
-  unsigned long acked_seq;
-  unsigned long copied_seq;
-  unsigned long rcv_ack_seq;
-  unsigned long window_seq;
-  unsigned long fin_seq;
-  unsigned long inuse:1, dead:1, urginline:1,
-                intr:1, blog:1, done:1, reuse:1, keepopen:1, linger:1,
-                delay_acks:1, timeout:3, destroy:1, ack_timed:1, no_check:1,
-                exp_growth:1;
-  int proc;
-  volatile struct sock *next;
-  volatile struct sock *pair;
-  struct sk_buff *send_tail;
-  struct sk_buff *send_head;
-  struct sk_buff *back_log;
-  long retransmits;
-  struct sk_buff *wback, *wfront, *rqueue;
-  struct proto *prot;
-  struct wait_queue **sleep;
-  unsigned long daddr;
-  unsigned long saddr;
-  unsigned short max_unacked;
-  unsigned short window;
-  unsigned short bytes_rcv;
-  unsigned short mtu;
-  unsigned short num;
-  unsigned short cong_window;
-  unsigned short packets_out;
-  unsigned short urg;
-  unsigned short shutdown;
-  short rtt;
-  unsigned char protocol;
-  unsigned char state;
-  unsigned char ack_backlog;
-  unsigned char err;
-  unsigned char max_ack_backlog;
-  unsigned char priority;
-  struct tcp_header dummy_th; /* I may be able to get rid of this. */
-  struct timer time_wait;
+	struct options *opt;
+	unsigned long wmem_alloc;
+	unsigned long rmem_alloc;
+	unsigned long send_seq;
+	unsigned long acked_seq;
+	unsigned long copied_seq;
+	unsigned long rcv_ack_seq;
+	unsigned long window_seq;
+	unsigned long fin_seq;
+	unsigned long inuse:1, dead:1, urginline:1,
+		      intr:1, blog:1, done:1, reuse:1, keepopen:1, linger:1,
+		      delay_acks:1, timeout:3, destroy:1, ack_timed:1, no_check:1,
+		      exp_growth:1;
+	int proc;
+	volatile struct sock *next;
+	volatile struct sock *pair;
+	/* 通过skb{}->link3 连接起来的单向链表，send_tail指向链表末尾，send_head指向链表头 */
+	struct sk_buff *send_tail;
+	struct sk_buff *send_head;
+	struct sk_buff *back_log;
+	long retransmits;
+	struct sk_buff *wback, *wfront, *rqueue;
+	struct proto *prot;
+	struct wait_queue **sleep;
+	unsigned long daddr;
+	unsigned long saddr;
+	unsigned short max_unacked;
+	unsigned short window;
+	unsigned short bytes_rcv;
+	unsigned short mtu;
+	unsigned short num;
+	unsigned short cong_window;
+	unsigned short packets_out;
+	unsigned short urg;
+	unsigned short shutdown;
+	short rtt;
+	unsigned char protocol;
+	unsigned char state;
+	unsigned char ack_backlog;
+	unsigned char err;
+	unsigned char max_ack_backlog;
+	unsigned char priority;
+	struct tcp_header dummy_th; /* I may be able to get rid of this. */
+	struct timer time_wait;
 };
 
+/* 不同的协议类型，创建socket{}的时候，与socket{}关联 */
 struct proto 
 {
-  void *(*wmalloc)(volatile struct sock *sk, unsigned long size, int force);
-  void *(*rmalloc)(volatile struct sock *sk, unsigned long size, int force);
-  void (*wfree)(volatile struct sock *sk, void *mem, unsigned long size);
-  void (*rfree)(volatile struct sock *sk, void *mem, unsigned long size);
-  unsigned long (*rspace)(volatile struct sock *sk);
-  unsigned long (*wspace)(volatile struct sock *sk);
-  void (*close)(volatile struct sock *sk, int timeout);
-  int (*read)(volatile struct sock *sk, unsigned char *to, int len,
-	      int nonblock, unsigned flags);
-  int (*write)(volatile struct sock *sk, unsigned char *to, int len,
-	       int nonblock, unsigned flags);
-  int (*sendto) (volatile struct sock *sk, unsigned char *from, int len,
-		 int noblock, unsigned flags, struct sockaddr_in *usin,
-		 int addr_len);
-  int (*recvfrom) (volatile struct sock *sk, unsigned char *from, int len,
-		   int noblock, unsigned flags, struct sockaddr_in *usin,
-		   int *addr_len);
-  int (*build_header) (struct sk_buff *skb, unsigned long saddr,
-		       unsigned long daddr, struct device **dev, int type,
-		       struct options *opt, int len);
-  int (*connect) (volatile struct sock *sk, struct sockaddr_in *usin,
-		  int addr_len);
-  volatile struct sock *(*accept) (volatile struct sock *sk, int flags);
-  void  (*queue_xmit) (volatile struct sock *sk, struct device *dev, 
-		       struct sk_buff *skb, int free);
-  void (*retransmit) (volatile struct sock *sk, int all);
-  void (*write_wakeup) (volatile struct sock *sk);
-  void (*read_wakeup) (volatile struct sock *sk);
-  int (*rcv)(struct sk_buff *buff, struct device *dev, struct options *opt,
-	     unsigned long daddr, unsigned short len,
-	     unsigned long saddr, int redo, struct ip_protocol *protocol);
-  int (*select)(volatile struct sock *sk, int which, select_table *wait);
-  int (*ioctl) (volatile struct sock *sk, int cmd, unsigned long arg);
-  int (*init) (volatile struct sock *sk);
-  unsigned short max_header;
-  unsigned long retransmits;
-  volatile struct sock *sock_array[SOCK_ARRAY_SIZE];
+	void *(*wmalloc)(volatile struct sock *sk, unsigned long size, int force);
+	void *(*rmalloc)(volatile struct sock *sk, unsigned long size, int force);
+	void (*wfree)(volatile struct sock *sk, void *mem, unsigned long size);
+	void (*rfree)(volatile struct sock *sk, void *mem, unsigned long size);
+	unsigned long (*rspace)(volatile struct sock *sk);
+	unsigned long (*wspace)(volatile struct sock *sk);
+	void (*close)(volatile struct sock *sk, int timeout);
+	int (*read)(volatile struct sock *sk, unsigned char *to, int len,
+			int nonblock, unsigned flags);
+	int (*write)(volatile struct sock *sk, unsigned char *to, int len,
+			int nonblock, unsigned flags);
+	int (*sendto) (volatile struct sock *sk, unsigned char *from, int len,
+			int noblock, unsigned flags, struct sockaddr_in *usin,
+			int addr_len);
+	int (*recvfrom) (volatile struct sock *sk, unsigned char *from, int len,
+			int noblock, unsigned flags, struct sockaddr_in *usin,
+			int *addr_len);
+	int (*build_header) (struct sk_buff *skb, unsigned long saddr,
+			unsigned long daddr, struct device **dev, int type,
+			struct options *opt, int len);
+	int (*connect) (volatile struct sock *sk, struct sockaddr_in *usin,
+			int addr_len);
+	volatile struct sock *(*accept) (volatile struct sock *sk, int flags);
+	void  (*queue_xmit) (volatile struct sock *sk, struct device *dev, 
+			struct sk_buff *skb, int free);
+	void (*retransmit) (volatile struct sock *sk, int all);
+	void (*write_wakeup) (volatile struct sock *sk);
+	void (*read_wakeup) (volatile struct sock *sk);
+	int (*rcv)(struct sk_buff *buff, struct device *dev, struct options *opt,
+			unsigned long daddr, unsigned short len,
+			unsigned long saddr, int redo, struct ip_protocol *protocol);
+	int (*select)(volatile struct sock *sk, int which, select_table *wait);
+	int (*ioctl) (volatile struct sock *sk, int cmd, unsigned long arg);
+	int (*init) (volatile struct sock *sk);
+	unsigned short max_header;
+	unsigned long retransmits;
+	volatile struct sock *sock_array[SOCK_ARRAY_SIZE];
 };
 
+/* 可以理解成是定时器类型 */
 #define TIME_WRITE 1
 #define TIME_CLOSE 2
 #define TIME_KEEPOPEN 3
@@ -147,10 +150,10 @@ struct sk_buff
 	} h;
 	unsigned long mem_len;		//报文占用内存大小
 	unsigned long len;		//报文长度
-	unsigned long saddr;
-	unsigned long daddr;
+	unsigned long saddr;		//源IP地址
+	unsigned long daddr;		//目的IP地址
 	/*
-	 * arp		包文不会在arp队列中等待
+	 * arp		报文不会加入arp等待队列
 	 */
 	unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
 };
