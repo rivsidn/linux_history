@@ -86,31 +86,31 @@ send_arp_q(void)
 static  void
 print_arp(struct arp *arp)
 {
-  int i;
-  unsigned long *lptr;
-  unsigned char *ptr;
-  PRINTK ("arp: \n");
-  PRINTK ("   hrd = %d\n",net16(arp->hrd));
-  PRINTK ("   pro = %d\n",net16(arp->pro));
-  PRINTK ("   hlen = %d plen = %d\n",arp->hlen, arp->plen);
-  PRINTK ("   op = %d\n", net16(arp->op));
-  ptr = (unsigned char *)(arp+1);
-  PRINTK ("   sender haddr = ");
-  for (i = 0; i < arp->hlen; i++)
-    {
-      PRINTK ("0x%02X ",*ptr++);
-    }
-  lptr = (void *)ptr;
-  PRINTK (" send paddr = %X\n",*lptr);
-  lptr ++;
-  ptr = (void *)lptr;
-  PRINTK ("   destination haddr = ");
-  for (i = 0; i < arp->hlen; i++)
-    {
-      PRINTK ("0x%02X ",*ptr++);
-    }
-  lptr = (void *)ptr;
-  PRINTK (" destination paddr = %X\n",*lptr);
+	int i;
+	unsigned long *lptr;
+	unsigned char *ptr;
+	PRINTK ("arp: \n");
+	PRINTK ("   hrd = %d\n",net16(arp->hrd));
+	PRINTK ("   pro = %d\n",net16(arp->pro));
+	PRINTK ("   hlen = %d plen = %d\n",arp->hlen, arp->plen);
+	PRINTK ("   op = %d\n", net16(arp->op));
+	ptr = (unsigned char *)(arp+1);
+	PRINTK ("   sender haddr = ");
+	for (i = 0; i < arp->hlen; i++)
+	{
+		PRINTK ("0x%02X ",*ptr++);
+	}
+	lptr = (void *)ptr;
+	PRINTK (" send paddr = %X\n",*lptr);
+	lptr ++;
+	ptr = (void *)lptr;
+	PRINTK ("   destination haddr = ");
+	for (i = 0; i < arp->hlen; i++)
+	{
+		PRINTK ("0x%02X ",*ptr++);
+	}
+	lptr = (void *)ptr;
+	PRINTK (" destination paddr = %X\n",*lptr);
 }
 
 /* 源mac地址 (h - hardware) */
@@ -251,13 +251,16 @@ arp_destroy(unsigned long paddr)
 	struct arp_table *apt;
 	struct arp_table *lapt;
 	PRINTK ("arp_destroy (paddr=%X)\n",paddr);
+
 	/* we don't want to destroy are own arp */
-	if (my_ip_addr(paddr)) return;
+	if (my_ip_addr(paddr))
+		return;
 	hash = net32(paddr) & (ARP_TABLE_SIZE - 1);
 
 	cli(); /* can't be interrupted. */
 	/* make sure there is something there. */
-	if (arp_table[hash] == NULL) return;
+	if (arp_table[hash] == NULL)
+		return;
 
 	/* check the first one. */
 	if (arp_table[hash]->ip == paddr)
