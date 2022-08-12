@@ -640,38 +640,20 @@ static int
 tcp_write(struct sock *sk, unsigned char *from,
 	  int len, int nonblock, unsigned flags)
 {
-  int copied = 0;
-  int copy;
-  int tmp;
-  struct sk_buff *skb;
-  unsigned char *buff;
-  struct proto *prot;
-  struct device *dev = NULL;
+	int copied = 0;
+	int copy;
+	int tmp;
+	struct sk_buff *skb;
+	unsigned char *buff;
+	struct proto *prot;
+	struct device *dev = NULL;
 
-  DPRINTF((DBG_TCP, "tcp_write(sk=%X, from=%X, len=%d, nonblock=%d, flags=%X)\n",
-					sk, from, len, nonblock, flags));
+	DPRINTF((DBG_TCP, "tcp_write(sk=%X, from=%X, len=%d, nonblock=%d, flags=%X)\n",
+				sk, from, len, nonblock, flags));
 
-  sk->inuse=1;
-  prot = sk->prot;
-  while(len > 0) {
-	if (sk->err) {
-		release_sock(sk);
-		if (copied) return(copied);
-		tmp = -sk->err;
-		sk->err = 0;
-		return(tmp);
-	}
-
-	/* First thing we do is make sure that we are established. */	 
-	if (sk->shutdown & SEND_SHUTDOWN) {
-		release_sock(sk);
-		sk->err = EPIPE;
-		if (copied) return(copied);
-		sk->err = 0;
-		return(-EPIPE);
-	}
-
-	while(sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT) {
+	sk->inuse=1;
+	prot = sk->prot;
+	while(len > 0) {
 		if (sk->err) {
 			release_sock(sk);
 			if (copied) return(copied);
@@ -680,222 +662,240 @@ tcp_write(struct sock *sk, unsigned char *from,
 			return(tmp);
 		}
 
-		if (sk->state != TCP_SYN_SENT && sk->state != TCP_SYN_RECV) {
+		/* First thing we do is make sure that we are established. */	 
+		if (sk->shutdown & SEND_SHUTDOWN) {
 			release_sock(sk);
-			DPRINTF((DBG_TCP, "tcp_write: return 1\n"));
+			sk->err = EPIPE;
 			if (copied) return(copied);
+			sk->err = 0;
+			return(-EPIPE);
+		}
 
+		while(sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT) {
 			if (sk->err) {
+				release_sock(sk);
+				if (copied) return(copied);
 				tmp = -sk->err;
 				sk->err = 0;
 				return(tmp);
 			}
 
-			if (sk->keepopen) {
-				send_sig(SIGPIPE, current, 0);
+			if (sk->state != TCP_SYN_SENT && sk->state != TCP_SYN_RECV) {
+				release_sock(sk);
+				DPRINTF((DBG_TCP, "tcp_write: return 1\n"));
+				if (copied) return(copied);
+
+				if (sk->err) {
+					tmp = -sk->err;
+					sk->err = 0;
+					return(tmp);
+				}
+
+				if (sk->keepopen) {
+					send_sig(SIGPIPE, current, 0);
+				}
+				return(-EPIPE);
 			}
-			return(-EPIPE);
+
+			if (nonblock || copied) {
+				release_sock(sk);
+				DPRINTF((DBG_TCP, "tcp_write: return 2\n"));
+				if (copied) return(copied);
+				return(-EAGAIN);
+			}
+
+			/*
+			 * FIXME:
+			 * Now here is a race condition.
+			 * release_sock could cause the connection to enter the
+			 * `established' mode, if that is the case, then we will
+			 * block here for ever, because we will have gotten our
+			 * wakeup call before we go to sleep.
+			 */
+			release_sock(sk);
+			cli();
+			if (sk->state != TCP_ESTABLISHED &&
+					sk->state != TCP_CLOSE_WAIT && sk->err == 0) {
+				interruptible_sleep_on(sk->sleep);
+				if (current->signal & ~current->blocked) {
+					sti();
+					DPRINTF((DBG_TCP, "tcp_write: return 3\n"));
+					if (copied) return(copied);
+					return(-ERESTARTSYS);
+				}
+			}
+			sk->inuse = 1;
+			sti();
 		}
 
-		if (nonblock || copied) {
-			release_sock(sk);
-			DPRINTF((DBG_TCP, "tcp_write: return 2\n"));
-			if (copied) return(copied);
-			return(-EAGAIN);
+		/* Now we need to check if we have a half built packet. */
+		if (sk->send_tmp != NULL) {
+			/* If sk->mss has been changed this could cause problems. */
+
+			/* Add more stuff to the end of skb->len */
+			skb = sk->send_tmp;
+			if (!(flags & MSG_OOB)) {
+				copy = min(sk->mss - skb->len + 128 +
+						prot->max_header, len);
+
+				/* FIXME: this is really a bug. */
+				if (copy <= 0) {
+					printk("TCP: **bug**: \"copy\" <= 0!!\n");
+					copy = 0;
+				}
+
+				memcpy_fromfs((unsigned char *)(skb+1) + skb->len, from, copy);
+				skb->len += copy;
+				from += copy;
+				copied += copy;
+				len -= copy;
+				sk->send_seq += copy;
+			}
+
+			if (skb->len -(unsigned long)skb->h.th +
+					(unsigned long)(skb+1) >= sk->mss ||(flags & MSG_OOB)) {
+				tcp_send_partial(sk);
+			}
+			continue;
 		}
 
 		/*
-		 * FIXME:
-		 * Now here is a race condition.
-		 * release_sock could cause the connection to enter the
-		 * `established' mode, if that is the case, then we will
-		 * block here for ever, because we will have gotten our
-		 * wakeup call before we go to sleep.
+		 * We also need to worry about the window.
+		 * The smallest we will send is about 200 bytes.
 		 */
-		release_sock(sk);
-		cli();
-		if (sk->state != TCP_ESTABLISHED &&
-		    sk->state != TCP_CLOSE_WAIT && sk->err == 0) {
-			interruptible_sleep_on(sk->sleep);
-			if (current->signal & ~current->blocked) {
-				sti();
-				DPRINTF((DBG_TCP, "tcp_write: return 3\n"));
+		copy = min(sk->mtu, diff(sk->window_seq, sk->send_seq));
+
+		/* FIXME: redundent check here. */
+		if (copy < 200 || copy > sk->mtu) copy = sk->mtu;
+		copy = min(copy, len);
+
+		/* We should really check the window here also. */
+		if (sk->packets_out && copy < sk->mss && !(flags & MSG_OOB)) {
+			/* We will release the socket incase we sleep here. */
+			release_sock(sk);
+			skb = (struct sk_buff *) prot->wmalloc(sk,
+					sk->mss + 128 + prot->max_header +
+					sizeof(*skb), 0, GFP_KERNEL);
+			sk->inuse = 1;
+			sk->send_tmp = skb;
+			if (skb != NULL)
+				skb->mem_len = sk->mss + 128 + prot->max_header + sizeof(*skb);
+		} else {
+			/* We will release the socket incase we sleep here. */
+			release_sock(sk);
+			skb = (struct sk_buff *) prot->wmalloc(sk,
+					copy + prot->max_header +
+					sizeof(*skb), 0, GFP_KERNEL);
+			sk->inuse = 1;
+			if (skb != NULL)
+				skb->mem_len = copy+prot->max_header + sizeof(*skb);
+		}
+
+		/* If we didn't get any memory, we need to sleep. */
+		if (skb == NULL) {
+			if (nonblock || copied) {
+				release_sock(sk);
+				DPRINTF((DBG_TCP, "tcp_write: return 4\n"));
 				if (copied) return(copied);
-				return(-ERESTARTSYS);
+				return(-EAGAIN);
 			}
-		}
-		sk->inuse = 1;
-		sti();
-	}
 
-	/* Now we need to check if we have a half built packet. */
-	if (sk->send_tmp != NULL) {
-		/* If sk->mss has been changed this could cause problems. */
-
-		/* Add more stuff to the end of skb->len */
-		skb = sk->send_tmp;
-		if (!(flags & MSG_OOB)) {
-			copy = min(sk->mss - skb->len + 128 +
-				   prot->max_header, len);
-	      
-		/* FIXME: this is really a bug. */
-		if (copy <= 0) {
-			printk("TCP: **bug**: \"copy\" <= 0!!\n");
-			copy = 0;
+			/* FIXME: here is another race condition. */
+			tmp = sk->wmem_alloc;
+			release_sock(sk);
+			cli();
+			/* Again we will try to avoid it. */
+			if (tmp <= sk->wmem_alloc &&
+					(sk->state == TCP_ESTABLISHED||sk->state == TCP_CLOSE_WAIT)
+					&& sk->err == 0) {
+				interruptible_sleep_on(sk->sleep);
+				if (current->signal & ~current->blocked) {
+					sti();
+					DPRINTF((DBG_TCP, "tcp_write: return 5\n"));
+					if (copied) return(copied);
+					return(-ERESTARTSYS);
+				}
+			}
+			sk->inuse = 1;
+			sti();
+			continue;
 		}
-	  
-		memcpy_fromfs((unsigned char *)(skb+1) + skb->len, from, copy);
-		skb->len += copy;
+
+		skb->mem_addr = skb;
+		skb->len = 0;
+		skb->sk = sk;
+		skb->free = 0;
+
+		buff =(unsigned char *)(skb+1);
+
+		/*
+		 * FIXME: we need to optimize this.
+		 * Perhaps some hints here would be good.
+		 */
+		tmp = prot->build_header(skb, sk->saddr, sk->daddr, &dev,
+				IPPROTO_TCP, sk->opt, skb->mem_len);
+		if (tmp < 0 ) {
+			prot->wfree(sk, skb->mem_addr, skb->mem_len);
+			release_sock(sk);
+			DPRINTF((DBG_TCP, "tcp_write: return 6\n"));
+			if (copied) return(copied);
+			return(tmp);
+		}
+		skb->len += tmp;
+		skb->dev = dev;
+		buff += tmp;
+		skb->h.th =(struct tcphdr *) buff;
+		tmp = tcp_build_header((struct tcphdr *)buff, sk, len-copy);
+		if (tmp < 0) {
+			prot->wfree(sk, skb->mem_addr, skb->mem_len);
+			release_sock(sk);
+			DPRINTF((DBG_TCP, "tcp_write: return 7\n"));
+			if (copied) return(copied);
+			return(tmp);
+		}
+
+		if (flags & MSG_OOB) {
+			((struct tcphdr *)buff)->urg = 1;
+			((struct tcphdr *)buff)->urg_ptr = ntohs(copy);
+		}
+		skb->len += tmp;
+		memcpy_fromfs(buff+tmp, from, copy);
+
 		from += copy;
 		copied += copy;
 		len -= copy;
+		skb->len += copy;
+		skb->free = 0;
 		sk->send_seq += copy;
-	}
 
-	if (skb->len -(unsigned long)skb->h.th +
-	   (unsigned long)(skb+1) >= sk->mss ||(flags & MSG_OOB)) {
-		tcp_send_partial(sk);
-	}
-	continue;
-  }
+		if (sk->send_tmp != NULL) continue;
 
-  /*
-   * We also need to worry about the window.
-   * The smallest we will send is about 200 bytes.
-   */
-  copy = min(sk->mtu, diff(sk->window_seq, sk->send_seq));
+		tcp_send_check((struct tcphdr *)buff, sk->saddr, sk->daddr,
+				copy + sizeof(struct tcphdr), sk);
 
-  /* FIXME: redundent check here. */
-  if (copy < 200 || copy > sk->mtu) copy = sk->mtu;
-  copy = min(copy, len);
-
-  /* We should really check the window here also. */
-  if (sk->packets_out && copy < sk->mss && !(flags & MSG_OOB)) {
-	/* We will release the socket incase we sleep here. */
-	release_sock(sk);
-	skb = (struct sk_buff *) prot->wmalloc(sk,
-			sk->mss + 128 + prot->max_header +
-			sizeof(*skb), 0, GFP_KERNEL);
-	sk->inuse = 1;
-	sk->send_tmp = skb;
-	if (skb != NULL)
-		skb->mem_len = sk->mss + 128 + prot->max_header + sizeof(*skb);
-	} else {
-		/* We will release the socket incase we sleep here. */
-		release_sock(sk);
-		skb = (struct sk_buff *) prot->wmalloc(sk,
-				copy + prot->max_header +
-				sizeof(*skb), 0, GFP_KERNEL);
-		sk->inuse = 1;
-		if (skb != NULL)
-			skb->mem_len = copy+prot->max_header + sizeof(*skb);
-	}
-
-	/* If we didn't get any memory, we need to sleep. */
-	if (skb == NULL) {
-		if (nonblock || copied) {
-			release_sock(sk);
-			DPRINTF((DBG_TCP, "tcp_write: return 4\n"));
-			if (copied) return(copied);
-			return(-EAGAIN);
-		}
-
-		/* FIXME: here is another race condition. */
-		tmp = sk->wmem_alloc;
-		release_sock(sk);
-		cli();
-		/* Again we will try to avoid it. */
-		if (tmp <= sk->wmem_alloc &&
-		  (sk->state == TCP_ESTABLISHED||sk->state == TCP_CLOSE_WAIT)
-				&& sk->err == 0) {
-			interruptible_sleep_on(sk->sleep);
-			if (current->signal & ~current->blocked) {
-				sti();
-				DPRINTF((DBG_TCP, "tcp_write: return 5\n"));
-				if (copied) return(copied);
-				return(-ERESTARTSYS);
+		skb->h.seq = sk->send_seq;
+		if (after(sk->send_seq , sk->window_seq) ||
+				sk->packets_out >= sk->cong_window) {
+			DPRINTF((DBG_TCP, "sk->cong_window = %d, sk->packets_out = %d\n",
+						sk->cong_window, sk->packets_out));
+			DPRINTF((DBG_TCP, "sk->send_seq = %d, sk->window_seq = %d\n",
+						sk->send_seq, sk->window_seq));
+			skb->next = NULL;
+			skb->magic = TCP_WRITE_QUEUE_MAGIC;
+			if (sk->wback == NULL) {
+				sk->wfront = skb;
+			} else {
+				sk->wback->next = skb;
 			}
-		}
-		sk->inuse = 1;
-		sti();
-		continue;
-	}
-
-	skb->mem_addr = skb;
-	skb->len = 0;
-	skb->sk = sk;
-	skb->free = 0;
-
-	buff =(unsigned char *)(skb+1);
-
-	/*
-	 * FIXME: we need to optimize this.
-	 * Perhaps some hints here would be good.
-	 */
-	tmp = prot->build_header(skb, sk->saddr, sk->daddr, &dev,
-				 IPPROTO_TCP, sk->opt, skb->mem_len);
-	if (tmp < 0 ) {
-		prot->wfree(sk, skb->mem_addr, skb->mem_len);
-		release_sock(sk);
-		DPRINTF((DBG_TCP, "tcp_write: return 6\n"));
-		if (copied) return(copied);
-		return(tmp);
-	}
-	skb->len += tmp;
-	skb->dev = dev;
-	buff += tmp;
-	skb->h.th =(struct tcphdr *) buff;
-	tmp = tcp_build_header((struct tcphdr *)buff, sk, len-copy);
-	if (tmp < 0) {
-		prot->wfree(sk, skb->mem_addr, skb->mem_len);
-		release_sock(sk);
-		DPRINTF((DBG_TCP, "tcp_write: return 7\n"));
-		if (copied) return(copied);
-		return(tmp);
-	}
-
-	if (flags & MSG_OOB) {
-		((struct tcphdr *)buff)->urg = 1;
-		((struct tcphdr *)buff)->urg_ptr = ntohs(copy);
-	}
-	skb->len += tmp;
-	memcpy_fromfs(buff+tmp, from, copy);
-
-	from += copy;
-	copied += copy;
-	len -= copy;
-	skb->len += copy;
-	skb->free = 0;
-	sk->send_seq += copy;
-
-	if (sk->send_tmp != NULL) continue;
-
-	tcp_send_check((struct tcphdr *)buff, sk->saddr, sk->daddr,
-		        copy + sizeof(struct tcphdr), sk);
-
-	skb->h.seq = sk->send_seq;
-	if (after(sk->send_seq , sk->window_seq) ||
-		  sk->packets_out >= sk->cong_window) {
-		DPRINTF((DBG_TCP, "sk->cong_window = %d, sk->packets_out = %d\n",
-					sk->cong_window, sk->packets_out));
-		DPRINTF((DBG_TCP, "sk->send_seq = %d, sk->window_seq = %d\n",
-					sk->send_seq, sk->window_seq));
-		skb->next = NULL;
-		skb->magic = TCP_WRITE_QUEUE_MAGIC;
-		if (sk->wback == NULL) {
-			sk->wfront = skb;
+			sk->wback = skb;
 		} else {
-			sk->wback->next = skb;
+			prot->queue_xmit(sk, dev, skb,0);
 		}
-		sk->wback = skb;
-	} else {
-		prot->queue_xmit(sk, dev, skb,0);
 	}
-  }
-  sk->err = 0;
-  release_sock(sk);
-  DPRINTF((DBG_TCP, "tcp_write: return 8\n"));
-  return(copied);
+	sk->err = 0;
+	release_sock(sk);
+	DPRINTF((DBG_TCP, "tcp_write: return 8\n"));
+	return(copied);
 }
 
 
