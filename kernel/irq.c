@@ -35,6 +35,9 @@
 
 void irq13(void);
 
+/*
+ * 进入中断时候递增，进入软中断之后递减，递减到 0 后开始软中断处理
+ */
 static unsigned long intr_count=0;
 
 /* I'll use an array for speed. and bitmap for speed. */
