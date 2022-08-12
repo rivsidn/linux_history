@@ -63,7 +63,9 @@ void show_net_buffers(void)
 /*
  *	Debugging paranoia. Can go later when this crud stack works
  */ 
-
+/*
+ *	调试，用于检查skb(head==0)或者是skb链表(head==1).
+ */
 int skb_check(struct sk_buff *skb, int head, int line, char *file)
 {
 	if (head) {
@@ -498,13 +500,14 @@ struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
 {
 	struct sk_buff *n;
 	unsigned long offset;
-	
+
+	/* alloc_skb() 参数并不包含sk_buff{} 头部 */
 	n=alloc_skb(skb->mem_len-sizeof(struct sk_buff),priority);
 	if(n==NULL)
 		return NULL;
-		
+
 	offset=((char *)n)-((char *)skb);
-		
+
 	memcpy(n->data,skb->data,skb->mem_len-sizeof(struct sk_buff));
 	n->len=skb->len;
 	n->link3=NULL;
@@ -527,8 +530,7 @@ struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
 	n->users=0;
 	return n;
 }
-	
-	
+
 /*
  *     Skbuff device locking
  */
