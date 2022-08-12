@@ -34,6 +34,7 @@
 
 #define CR0_NE 32
 
+/* 中断、软中断之前都会递增该值，中断、软中断执行结束之后递减 */
 static unsigned long intr_count=0;
 
 /* I'll use an array for speed. and bitmap for speed. */
