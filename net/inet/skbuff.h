@@ -32,6 +32,10 @@
 
 /*
  * magic_debug_cookie		用于调试，主要是用于检查skb 参数的合理性
+ *
+ * free		0 驱动发送之后并不立即释放，由协议自己释放，TCP协议收到ACK之后才释放
+ *		1 驱动发送之后立即释放
+ * 		2 初始化的一个无效值
  */
 struct sk_buff {
 	unsigned long		magic_debug_cookie;
