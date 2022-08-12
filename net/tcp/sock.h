@@ -153,6 +153,8 @@ struct sk_buff
 	unsigned long saddr;		//源IP地址
 	unsigned long daddr;		//目的IP地址
 	/*
+	 * free		驱动发送报文之后并不立即释放，由协议层释放。
+	 * 		仅TCP会出现free为0的情况，报文发送之后，需要收到ACK才能释放。
 	 * arp		报文不会加入arp等待队列
 	 */
 	unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
