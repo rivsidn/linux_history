@@ -30,37 +30,40 @@
 #define FREE_WRITE	0
 
 
+/*
+ * magic_debug_cookie		用于调试，主要是用于检查skb 参数的合理性
+ */
 struct sk_buff {
-  unsigned long			magic_debug_cookie;
-  struct sk_buff		*volatile next;
-  struct sk_buff		*volatile prev;
-  struct sk_buff		*volatile link3;
-  struct sk_buff		*volatile* list;
-  struct sock			*sk;
-  volatile unsigned long	when;	/* used to compute rtt's	*/
-  struct device			*dev;
-  void				*mem_addr;
-  union {
-	struct tcphdr	*th;
-	struct ethhdr	*eth;
-	struct iphdr	*iph;
-	struct udphdr	*uh;
-	struct arphdr	*arp;
-	unsigned char	*raw;
-	unsigned long	seq;
-  } h;
-  unsigned long			mem_len;
-  unsigned long 		len;
-  unsigned long			truesize;
-  unsigned long 		saddr;
-  unsigned long 		daddr;
-  int				magic;
-  volatile char 		acked,
+	unsigned long		magic_debug_cookie;
+	struct sk_buff		*volatile next;
+	struct sk_buff		*volatile prev;
+	struct sk_buff		*volatile link3;
+	struct sk_buff		*volatile* list;
+	struct sock		*sk;
+	volatile unsigned long	when;	/* used to compute rtt's	*/
+	struct device		*dev;
+	void			*mem_addr;
+	union {
+		struct tcphdr	*th;
+		struct ethhdr	*eth;
+		struct iphdr	*iph;
+		struct udphdr	*uh;
+		struct arphdr	*arp;
+		unsigned char	*raw;
+		unsigned long	seq;
+	} h;
+	unsigned long		mem_len;
+	unsigned long 		len;
+	unsigned long		truesize;
+	unsigned long 		saddr;
+	unsigned long 		daddr;
+	int			magic;
+	volatile char 		acked,
 				used,
 				free,
 				arp,
 				urg_used;
-  unsigned char			tries,lock;	/* Lock is now unused */
+	unsigned char		tries,lock;	/* Lock is now unused */
 };
 
 #define SK_WMEM_MAX	8192
@@ -84,7 +87,7 @@ extern struct sk_buff *		alloc_skb(unsigned int size, int priority);
 extern void			kfree_skbmem(void *mem, unsigned size);
 
 extern void 			skb_check(struct sk_buff *skb,int, char *);
-#define IS_SKB(skb)	skb_check((skb),__LINE__,__FILE__)
+#define IS_SKB(skb)		skb_check((skb),__LINE__,__FILE__)
 
 extern struct sk_buff *		skb_recv_datagram(struct sock *sk,unsigned flags,int noblock, int *err);
 extern int			datagram_select(struct sock *sk, int sel_type, select_table *wait);

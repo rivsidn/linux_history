@@ -52,8 +52,12 @@ volatile unsigned long net_skbcount=0;
  
 
 
+/*
+ * 由 IS_SKB() 调用，检查skb 参数的合理性
+ */
 void skb_check(struct sk_buff *skb, int line, char *file)
 {
+	/* 参数传递来的skb已经释放了，提示异常 */
 	if(skb->magic_debug_cookie==SK_FREED_SKB)
 	{
 		printk("File: %s Line %d, found a freed skb lurking in the undergrowth!\n",
@@ -61,12 +65,14 @@ void skb_check(struct sk_buff *skb, int line, char *file)
 		printk("skb=%p, real size=%ld, claimed size=%ld, magic=%ld, list=%p, free=%d\n",
 			skb,skb->truesize,skb->mem_len,skb->magic,skb->list,skb->free);
 	}
+	/* 不是一个合法的skb */
 	if(skb->magic_debug_cookie!=SK_GOOD_SKB)
 	{
 		printk("File: %s Line %d, passed a non skb!\n", file,line);
 		printk("skb=%p, real size=%ld, claimed size=%ld, magic=%ld, list=%p, free=%d\n",
 			skb,skb->truesize,skb->mem_len,skb->magic,skb->list,skb->free);
 	}
+	/* skb长度不合理 */
 	if(skb->mem_len!=skb->truesize)
 	{
 		printk("File: %s Line %d, Dubious size setting!\n",file,line);
@@ -410,6 +416,7 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 	skb->truesize=size;
 	skb->mem_len=size;
 	skb->mem_addr=skb;
+	/* 网络模块统计信息 */
 	net_memory+=size;
 	net_skbcount++;
 	skb->magic_debug_cookie=SK_GOOD_SKB;
@@ -428,6 +435,7 @@ void kfree_skbmem(void *mem,unsigned size)
 	{
 		x->magic_debug_cookie=SK_FREED_SKB;
 		kfree_s(mem,size);
+		/* 网络模块统计信息 */
 		net_skbcount--;
 		net_memory-=size;
 	}
