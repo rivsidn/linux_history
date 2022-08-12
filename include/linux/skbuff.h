@@ -36,49 +36,49 @@ struct sk_buff_head {
 
 
 struct sk_buff {
-  struct sk_buff		* volatile next;
-  struct sk_buff		* volatile prev;
+	struct sk_buff		* volatile next;
+	struct sk_buff		* volatile prev;
 #if CONFIG_SKB_CHECK
-  int				magic_debug_cookie;
+	int			magic_debug_cookie;
 #endif
-  struct sk_buff		* volatile link3;
-  struct sock			*sk;
-  volatile unsigned long	when;	/* used to compute rtt's	*/
-  struct timeval		stamp;
-  struct device			*dev;
-  void				*mem_addr;
-  union {
-	struct tcphdr	*th;
-	struct ethhdr	*eth;
-	struct iphdr	*iph;
-	struct udphdr	*uh;
-	unsigned char	*raw;
-	unsigned long	seq;
-  } h;
-  struct iphdr		*ip_hdr;		/* For IPPROTO_RAW */
-  unsigned long			mem_len;
-  unsigned long 		len;
-  unsigned long			fraglen;
-  struct sk_buff		*fraglist;	/* Fragment list */
-  unsigned long			truesize;
-  unsigned long 		saddr;
-  unsigned long 		daddr;
-  unsigned long			raddr;		/* next hop addr */
-  volatile char 		acked,
-				used,
-				free,
-				arp;
-  unsigned char			tries,lock,localroute,pkt_type;
+	struct sk_buff		* volatile link3;
+	struct sock		*sk;
+	volatile unsigned long	when;	/* used to compute rtt's	*/
+	struct timeval		stamp;
+	struct device		*dev;
+	void			*mem_addr;
+	union {
+		struct tcphdr	*th;
+		struct ethhdr	*eth;
+		struct iphdr	*iph;
+		struct udphdr	*uh;
+		unsigned char	*raw;
+		unsigned long	seq;
+	} h;
+	struct iphdr		*ip_hdr;		/* For IPPROTO_RAW */
+	unsigned long		mem_len;
+	unsigned long 		len;
+	unsigned long		fraglen;
+	struct sk_buff		*fraglist;	/* Fragment list */
+	unsigned long		truesize;
+	unsigned long 		saddr;
+	unsigned long 		daddr;
+	unsigned long		raddr;		/* next hop addr */
+	volatile char 		acked,
+		 used,
+		 free,
+		 arp;
+	unsigned char		tries,lock,localroute,pkt_type;
 #define PACKET_HOST		0		/* To us */
 #define PACKET_BROADCAST	1
 #define PACKET_MULTICAST	2
 #define PACKET_OTHERHOST	3		/* Unmatched promiscuous */
-  unsigned short		users;		/* User count - see datagram.c (and soon seqpacket.c/stream.c) */
+	unsigned short		users;		/* User count - see datagram.c (and soon seqpacket.c/stream.c) */
 #ifdef CONFIG_SLAVE_BALANCING
-  unsigned short		in_dev_queue;
+	unsigned short		in_dev_queue;
 #endif  
-  unsigned long			padding[0];
-  unsigned char			data[0];
+	unsigned long		padding[0];
+	unsigned char		data[0];
 };
 
 #define SK_WMEM_MAX	32767

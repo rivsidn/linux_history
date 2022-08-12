@@ -400,44 +400,44 @@ void kfree_skb(struct sk_buff *skb, int rw)
  *	fields and also do memory statistics to find all the [BEEP] leaks.
  */
  
- struct sk_buff *alloc_skb(unsigned int size,int priority)
- {
- 	struct sk_buff *skb;
- 	unsigned long flags;
- 		
- 	if (intr_count && priority!=GFP_ATOMIC) {
+struct sk_buff *alloc_skb(unsigned int size,int priority)
+{
+	struct sk_buff *skb;
+	unsigned long flags;
+
+	if (intr_count && priority!=GFP_ATOMIC) {
 		static int count = 0;
 		if (++count < 5) {
 			printk("alloc_skb called nonatomically from interrupt %08lx\n",
-				((unsigned long *)&size)[-1]);
+					((unsigned long *)&size)[-1]);
 			priority = GFP_ATOMIC;
 		}
- 	}
- 	
- 	size+=sizeof(struct sk_buff);
- 	skb=(struct sk_buff *)kmalloc(size,priority);
- 	if (skb == NULL)
- 	{
- 		net_fails++;
- 		return NULL;
- 	}
+	}
+
+	size+=sizeof(struct sk_buff);
+	skb=(struct sk_buff *)kmalloc(size,priority);
+	if (skb == NULL)
+	{
+		net_fails++;
+		return NULL;
+	}
 #ifdef PARANOID_BUGHUNT_MODE
 	if(skb->magic_debug_cookie == SK_GOOD_SKB)
 		printk("Kernel kmalloc handed us an existing skb (%p)\n",skb);
 #endif		 	
 
 	net_allocs++;
-	
- 	skb->free = 2;	/* Invalid so we pick up forgetful users */
+
+	skb->free = 2;	/* Invalid so we pick up forgetful users */
 	skb->lock = 0;
 	skb->pkt_type = PACKET_HOST;	/* Default type */
- 	skb->truesize = size;
- 	skb->mem_len = size;
- 	skb->mem_addr = skb;
+	skb->truesize = size;
+	skb->mem_len = size;
+	skb->mem_addr = skb;
 #ifdef CONFIG_SLAVE_BALANCING 	
- 	skb->in_dev_queue = 0;
+	skb->in_dev_queue = 0;
 #endif 	
- 	skb->fraglist = NULL;
+	skb->fraglist = NULL;
 	skb->prev = skb->next = NULL;
 	skb->link3 = NULL;
 	skb->sk = NULL;
@@ -446,14 +446,14 @@ void kfree_skb(struct sk_buff *skb, int rw)
 	skb->localroute = 0;
 	save_flags(flags);
 	cli();
- 	net_memory += size;
- 	net_skbcount++;
- 	restore_flags(flags);
+	net_memory += size;
+	net_skbcount++;
+	restore_flags(flags);
 #if CONFIG_SKB_CHECK
 	skb->magic_debug_cookie = SK_GOOD_SKB;
 #endif
- 	skb->users = 0;
- 	return skb;
+	skb->users = 0;
+	return skb;
 }
 
 /*
