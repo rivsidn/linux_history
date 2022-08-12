@@ -597,265 +597,265 @@ static int
 tcp_write (volatile struct sock *sk, unsigned char *from,
 	   int len, int nonblock, unsigned flags)
 {
-  int copied=0;
-  int copy;
-  int tmp;
-  struct sk_buff *skb;
-  unsigned char *buff;
-  struct proto *prot;
-  struct device *dev=NULL;
+	int copied=0;
+	int copy;
+	int tmp;
+	struct sk_buff *skb;
+	unsigned char *buff;
+	struct proto *prot;
+	struct device *dev=NULL;
 
-  PRINTK ("tcp_write (sk=%X, from=%X, len=%d, nonblock=%d, flags=%X)\n",
-	  sk, from, len, nonblock, flags);
+	PRINTK ("tcp_write (sk=%X, from=%X, len=%d, nonblock=%d, flags=%X)\n",
+			sk, from, len, nonblock, flags);
 
-  print_sk (sk);
+	print_sk (sk);
 
-  prot = sk->prot;
-  while (len > 0)
-    {
-       /* first thing we do is make sure that we are established. */	 
-
-      sk->inuse = 1; /* no one else will use this socket. */
-      while (sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT)
+	prot = sk->prot;
+	while (len > 0)
 	{
-	  if (sk->state != TCP_SYN_SENT &&
-	      sk->state != TCP_SYN_RECV)
-	   {
-	      release_sock (sk);
-	      PRINTK ("tcp_write: return 1\n");
-	      if (copied) return (copied);
+		/* first thing we do is make sure that we are established. */	 
 
-	      if (sk->err)
+		sk->inuse = 1; /* no one else will use this socket. */
+		while (sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT)
 		{
-		  tmp = -sk->err;
-		  sk->err = 0;
-		  return (tmp);
+			if (sk->state != TCP_SYN_SENT &&
+					sk->state != TCP_SYN_RECV)
+			{
+				release_sock (sk);
+				PRINTK ("tcp_write: return 1\n");
+				if (copied) return (copied);
+
+				if (sk->err)
+				{
+					tmp = -sk->err;
+					sk->err = 0;
+					return (tmp);
+				}
+
+				if (sk->keepopen)
+				{
+					send_sig (SIGPIPE, current, 0);
+				}
+				return (-EPIPE);
+			}
+
+			if (nonblock)
+			{
+				PRINTK ("tcp_write: return 2\n");
+				release_sock (sk);
+				if (copied) return (copied);
+				return (-EAGAIN);
+			}
+
+			/* now here is a race condition.
+			   release_sock could cause the connection to
+			   enter the established mode, if that is the
+			   case, then we will block here for ever, because
+			   we will have gotten our wakeup call before we
+			   go to sleep. */
+			release_sock (sk);
+			cli();
+			if (sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT)
+			{
+				interruptible_sleep_on (sk->sleep);
+				if (current->signal & ~current->blocked)
+				{
+					sti();
+					PRINTK ("tcp_write: return 3\n");
+					if (copied) return (copied);
+					return (-ERESTARTSYS);
+				}
+			}
+			sti();
+			sk->inuse = 1;
 		}
 
-	      if (sk->keepopen)
+		/* Now we need to check if we have a half built packet. */
+		if (sk->send_tmp != NULL)
 		{
-		    send_sig (SIGPIPE, current, 0);
+			/* if sk->mss has been changed this could cause problems. */
+			/* add more stuff to the end of skb->len*/
+			skb = sk->send_tmp;
+			if (!(flags & MSG_OOB))
+			{
+				copy = min (sk->mss - skb->len + 128 + prot->max_header, len);
+
+				/* this is really a bug. */
+				if (copy <= 0)
+					copy = 0;
+
+				memcpy_fromfs ((unsigned char *)(skb+1) + skb->len, from, copy);
+				skb->len += copy;
+				from += copy;
+				copied += copy;
+				len -= copy;
+				sk->send_seq += copy;
+			}
+
+			if (skb->len - (unsigned long)skb->h.th +
+					(unsigned long)(skb+1) >= sk->mss
+					|| (flags & MSG_OOB))
+			{
+				tcp_send_partial (sk);
+			}
+			continue;
+
 		}
-	      return (-EPIPE);
-	    }
 
-	  if (nonblock)
-	    {
-	      PRINTK ("tcp_write: return 2\n");
-	      release_sock (sk);
-	      if (copied) return (copied);
-	      return (-EAGAIN);
-	    }
+		/* we also need to worry about the window.  The smallest we
+		   will send is about 200 bytes. */
 
-	  /* now here is a race condition.
-	     release_sock could cause the connection to
-	     enter the established mode, if that is the
-	     case, then we will block here for ever, because
-	     we will have gotten our wakeup call before we
-	     go to sleep. */
-	  release_sock (sk);
-	  cli();
-	  if (sk->state != TCP_ESTABLISHED && sk->state != TCP_CLOSE_WAIT)
-	    {
-	      interruptible_sleep_on (sk->sleep);
-	      if (current->signal & ~current->blocked)
+		copy = min (sk->mtu, diff(sk->window_seq, sk->send_seq));
+
+		/* redundent check here. */
+		if (copy < 200 || copy > sk->mtu) copy = sk->mtu;
+		copy = min (copy, len);
+
+		/* we should really check the window here also. */
+		if (sk->packets_out && copy < sk->mss && !(flags & MSG_OOB)) 
 		{
-		   sti();
-		   PRINTK ("tcp_write: return 3\n");
-		   if (copied) return (copied);
-		   return (-ERESTARTSYS);
+			/* we will release the socket incase we sleep here. */
+			release_sock (sk);
+			skb=prot->wmalloc (sk,
+					sk->mss + 128 + prot->max_header + sizeof (*skb),
+					0, GFP_KERNEL);
+			sk->inuse = 1;
+			sk->send_tmp = skb;
+			if (skb != NULL)
+				skb->mem_len = sk->mss + 128 + prot->max_header+sizeof (*skb);
 		}
-	    }
-	  sti();
-	  sk->inuse = 1;
-	}
-
-      /* Now we need to check if we have a half built packet. */
-      if (sk->send_tmp != NULL)
-	{
-	  /* if sk->mss has been changed this could cause problems. */
-	  /* add more stuff to the end of skb->len*/
-	  skb = sk->send_tmp;
-	  if (!(flags & MSG_OOB))
-	    {
-	      copy = min (sk->mss - skb->len + 128 + prot->max_header, len);
-	      
-	      /* this is really a bug. */
-	      if (copy <= 0)
-		copy = 0;
-	  
-	      memcpy_fromfs ((unsigned char *)(skb+1) + skb->len, from, copy);
-	      skb->len += copy;
-	      from += copy;
-	      copied += copy;
-	      len -= copy;
-	      sk->send_seq += copy;
-	    }
-
-	  if (skb->len - (unsigned long)skb->h.th +
-	      (unsigned long)(skb+1) >= sk->mss
-	      || (flags & MSG_OOB))
-	    {
-	      tcp_send_partial (sk);
-	    }
-	  continue;
-	  
-	}
-
-      /* we also need to worry about the window.  The smallest we
-	 will send is about 200 bytes. */
-
-      copy = min (sk->mtu, diff(sk->window_seq, sk->send_seq));
-
-      /* redundent check here. */
-      if (copy < 200 || copy > sk->mtu) copy = sk->mtu;
-      copy = min (copy, len);
-
-      /* we should really check the window here also. */
-      if (sk->packets_out && copy < sk->mss && !(flags & MSG_OOB)) 
-	{
-	  /* we will release the socket incase we sleep here. */
-	  release_sock (sk);
-	  skb=prot->wmalloc (sk,
-			     sk->mss + 128 + prot->max_header + sizeof (*skb),
-			     0, GFP_KERNEL);
-	  sk->inuse = 1;
-	  sk->send_tmp = skb;
-	  if (skb != NULL)
-	    skb->mem_len = sk->mss + 128 + prot->max_header+sizeof (*skb);
-	}
-      else
-	{
-	  /* we will release the socket incase we sleep here. */
-	  release_sock (sk);
-	  skb=prot->wmalloc (sk, copy + prot->max_header+sizeof (*skb),0,
-			     GFP_KERNEL);
-	  sk->inuse = 1;
-	  if (skb != NULL)
-	    skb->mem_len = copy+prot->max_header+sizeof (*skb);
-	}
-
-      /* if we didn't get any memory, we need to sleep. */
-      if (skb == NULL)
-	{
-	  if (nonblock)
-	    {
-	      release_sock (sk);
-	      PRINTK ("tcp_write: return 4\n");
-	      if (copied) return (copied);
-	      return (-EAGAIN);
-	    }
-
-	  /* here is another race condition. */
-	  tmp = sk->wmem_alloc;
-	  release_sock (sk);
-
-	  /* again we will try to avoid it. */
-	  cli ();
-	  if (tmp <= sk->wmem_alloc)
-	    {
-	      interruptible_sleep_on (sk->sleep);
-	      if (current->signal & ~current->blocked)
+		else
 		{
-		   sti();
-		   PRINTK ("tcp_write: return 5\n");
-		   if (copied) return (copied);
-		   return (-ERESTARTSYS);
+			/* we will release the socket incase we sleep here. */
+			release_sock (sk);
+			skb=prot->wmalloc (sk, copy + prot->max_header+sizeof (*skb),0,
+					GFP_KERNEL);
+			sk->inuse = 1;
+			if (skb != NULL)
+				skb->mem_len = copy+prot->max_header+sizeof (*skb);
 		}
-	    }
-	  sk->inuse = 1;
-	  sti();
-	  continue;
-	}
 
-      skb->mem_addr = skb;
-      skb->len = 0;
-      skb->sk = sk;
-      skb->lock = 0;
-      skb->free = 0;
+		/* if we didn't get any memory, we need to sleep. */
+		if (skb == NULL)
+		{
+			if (nonblock)
+			{
+				release_sock (sk);
+				PRINTK ("tcp_write: return 4\n");
+				if (copied) return (copied);
+				return (-EAGAIN);
+			}
 
-      buff =(unsigned char *)( skb+1);
-       /* we need to optimize this.  Perhaps some hints here
-	  would be good. */
+			/* here is another race condition. */
+			tmp = sk->wmem_alloc;
+			release_sock (sk);
 
-      tmp = prot->build_header (skb, sk->saddr, sk->daddr, &dev,
+			/* again we will try to avoid it. */
+			cli ();
+			if (tmp <= sk->wmem_alloc)
+			{
+				interruptible_sleep_on (sk->sleep);
+				if (current->signal & ~current->blocked)
+				{
+					sti();
+					PRINTK ("tcp_write: return 5\n");
+					if (copied) return (copied);
+					return (-ERESTARTSYS);
+				}
+			}
+			sk->inuse = 1;
+			sti();
+			continue;
+		}
+
+		skb->mem_addr = skb;
+		skb->len = 0;
+		skb->sk = sk;
+		skb->lock = 0;
+		skb->free = 0;
+
+		buff =(unsigned char *)( skb+1);
+		/* we need to optimize this.  Perhaps some hints here
+		   would be good. */
+
+		tmp = prot->build_header (skb, sk->saddr, sk->daddr, &dev,
 				IPPROTO_TCP, sk->opt, skb->mem_len);
-      if (tmp < 0 )
-	{
-	  prot->wfree (sk, skb->mem_addr, skb->mem_len);
-	  release_sock (sk);
-	  PRINTK ("tcp_write: return 6\n");
-	  if (copied) return (copied);
-	  return (tmp);
+		if (tmp < 0 )
+		{
+			prot->wfree (sk, skb->mem_addr, skb->mem_len);
+			release_sock (sk);
+			PRINTK ("tcp_write: return 6\n");
+			if (copied) return (copied);
+			return (tmp);
+		}
+		skb->len += tmp;
+		skb->dev = dev;
+		buff+=tmp;
+		skb->h.th =(struct tcp_header *) buff;
+		tmp = tcp_build_header((struct tcp_header *)buff, sk, len-copy);
+
+		if (tmp < 0)
+		{
+			prot->wfree (sk, skb->mem_addr, skb->mem_len);
+			release_sock (sk);
+			PRINTK ("tcp_write: return 7\n");
+			if (copied) return (copied);
+			return (tmp);
+		}
+
+		if (flags & MSG_OOB)
+		{
+			((struct tcp_header *)buff)->urg = 1;
+			((struct tcp_header *)buff)->urg_ptr = copy;
+		}
+		skb->len += tmp;
+		memcpy_fromfs (buff+tmp, from, copy);
+
+		from += copy;
+		copied += copy;
+		len -= copy;
+		skb->len += copy;
+		skb->free = 0;
+		sk->send_seq += copy;
+
+		if (sk->send_tmp != NULL)
+		{
+			continue;
+		}
+
+		tcp_send_check ((struct tcp_header *)buff, sk->saddr, sk->daddr,
+				copy +sizeof (struct tcp_header), sk);
+
+
+		skb->h.seq = sk->send_seq;
+		if (after (sk->send_seq , sk->window_seq) ||
+				sk->packets_out >= sk->cong_window)
+		{
+			PRINTK ("sk->cong_window = %d, sk->packets_out = %d\n",
+					sk->cong_window, sk->packets_out);
+			PRINTK ("sk->send_seq = %d, sk->window_seq = %d\n",
+					sk->send_seq, sk->window_seq);
+			skb->next = NULL;
+			skb->magic = TCP_WRITE_QUEUE_MAGIC;
+			if (sk->wback == NULL)
+			{
+				sk->wfront=skb;
+			}
+			else
+			{
+				sk->wback->next = skb;
+			}
+			sk->wback = skb;
+		}
+		else
+		{
+			prot->queue_xmit (sk, dev, skb,0);
+		}
 	}
-      skb->len += tmp;
-      skb->dev = dev;
-      buff+=tmp;
-      skb->h.th =(struct tcp_header *) buff;
-      tmp = tcp_build_header((struct tcp_header *)buff, sk, len-copy);
-
-      if (tmp < 0)
-	{
-	  prot->wfree (sk, skb->mem_addr, skb->mem_len);
-	  release_sock (sk);
-	  PRINTK ("tcp_write: return 7\n");
-	  if (copied) return (copied);
-	  return (tmp);
-	}
-
-      if (flags & MSG_OOB)
-	{
-		((struct tcp_header *)buff)->urg = 1;
-		((struct tcp_header *)buff)->urg_ptr = copy;
-	}
-      skb->len += tmp;
-      memcpy_fromfs (buff+tmp, from, copy);
-
-      from += copy;
-      copied += copy;
-      len -= copy;
-      skb->len += copy;
-      skb->free = 0;
-      sk->send_seq += copy;
-
-      if (sk->send_tmp != NULL)
-	{
-	  continue;
-	}
-
-      tcp_send_check ((struct tcp_header *)buff, sk->saddr, sk->daddr,
-		       copy +sizeof (struct tcp_header), sk);
-
-
-      skb->h.seq = sk->send_seq;
-      if (after (sk->send_seq , sk->window_seq) ||
-	  sk->packets_out >= sk->cong_window)
-	{
-	  PRINTK ("sk->cong_window = %d, sk->packets_out = %d\n",
-		  sk->cong_window, sk->packets_out);
-	  PRINTK ("sk->send_seq = %d, sk->window_seq = %d\n",
-		  sk->send_seq, sk->window_seq);
-	  skb->next = NULL;
-	  skb->magic = TCP_WRITE_QUEUE_MAGIC;
-	  if (sk->wback == NULL)
-	    {
-	      sk->wfront=skb;
-	    }
-	  else
-	    {
-	      sk->wback->next = skb;
-	    }
-	  sk->wback = skb;
-	}
-      else
-	{
-	  prot->queue_xmit (sk, dev, skb,0);
-	}
-    }
-  sk->err = 0;
-  release_sock (sk);
-  PRINTK ("tcp_write: return 8\n");
-  return (copied);
+	sk->err = 0;
+	release_sock (sk);
+	PRINTK ("tcp_write: return 8\n");
+	return (copied);
 }
 
 static int
