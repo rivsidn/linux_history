@@ -85,20 +85,22 @@ void skb_check(struct sk_buff *skb, int line, char *file)
 /*
  *	Insert an sk_buff at the start of a list.
  */
-    
+/*
+ *	将报文插入到链表头
+ */
 void skb_queue_head(struct sk_buff *volatile* list,struct sk_buff *new)
 {
 	unsigned long flags;
-	
+
 	IS_SKB(new);	
 	if(new->list)
 		printk("Suspicious queue head: sk_buff on list!\n");
 	save_flags(flags);
 	cli();
 	new->list=list;
-	
+
 	new->next=*list;
-	
+
 	if(*list)
 		new->prev=(*list)->prev;
 	else
@@ -150,21 +152,23 @@ void skb_queue_tail(struct sk_buff *volatile* list, struct sk_buff *new)
  *	Remove an sk_buff from a list. This routine is also interrupt safe
  *	so you can grab read and free buffers as another process adds them.
  */
- 
+/*
+ *	从链表中移除一个报文
+ */
 struct sk_buff *skb_dequeue(struct sk_buff *volatile* list)
 {
 	long flags;
 	struct sk_buff *result;
-	
+
 	save_flags(flags);
 	cli();
-	
+
 	if(*list==NULL)
 	{
 		restore_flags(flags);
 		return(NULL);
 	}
-	
+
 	result=*list;
 	if(result->next==result)
 		*list=NULL;
@@ -177,7 +181,7 @@ struct sk_buff *skb_dequeue(struct sk_buff *volatile* list)
 
 	IS_SKB(result);
 	restore_flags(flags);
-	
+
 	if(result->list!=list)
 		printk("Dequeued packet has invalid list pointer\n");
 
@@ -190,7 +194,9 @@ struct sk_buff *skb_dequeue(struct sk_buff *volatile* list)
 /*
  *	Insert a packet before another one in a list.
  */
- 
+/*
+ *	将报文放到给定的报文之前
+ */
 void skb_insert(struct sk_buff *old, struct sk_buff *new)
 {
 	unsigned long flags;
@@ -217,7 +223,9 @@ void skb_insert(struct sk_buff *old, struct sk_buff *new)
 /*
  *	Place a packet after a given packet in a list.
  */
- 
+/*
+ *	将报文放到给定的报文之后
+ */
 void skb_append(struct sk_buff *old, struct sk_buff *new)
 {
 	unsigned long flags;
@@ -248,6 +256,9 @@ void skb_append(struct sk_buff *old, struct sk_buff *new)
  *	_FIRST_.
  */
  
+/*
+ * 将skb 从链表中删除
+ */
 void skb_unlink(struct sk_buff *skb)
 {
 	unsigned long flags;
@@ -255,13 +266,15 @@ void skb_unlink(struct sk_buff *skb)
 	cli();
 
 	IS_SKB(skb);
-	
+
 	if(skb->list)
 	{
 		skb->next->prev=skb->prev;
 		skb->prev->next=skb->next;
+		/* 如果skb 位于表头 */
 		if(*skb->list==skb)
 		{
+			/* 只有skb一个报文 */
 			if(skb->next==skb)
 				*skb->list=NULL;
 			else
@@ -279,6 +292,10 @@ void skb_unlink(struct sk_buff *skb)
  *	pointers. Must be called with ints off during the whole head
  *	shifting
  */
+/*
+ * 	将链表中的所有skb->list 指向新的list.
+ *	必须在关中断的时候调用
+ */
 
 void skb_new_list_head(struct sk_buff *volatile* list)
 {
@@ -290,18 +307,20 @@ void skb_new_list_head(struct sk_buff *volatile* list)
 			IS_SKB(skb);
 			skb->list=list;
 			skb=skb->next;
-		}
-		while(skb!=*list);
+		} while(skb!=*list);
 	}
 }
-			
+
 /*
  *	Peek an sk_buff. Unlike most other operations you _MUST_
  *	be careful with this one. A peek leaves the buffer on the
  *	list and someone else may run off with it. For an interrupt
  *	type system cli() peek the buffer copy the data and sti();
  */
-
+/*
+ * 	返回list 链表中的第一个报文;
+ * 	该函数调用之前需要关闭中断、调用结束之后开启中断.
+ */
 struct sk_buff *skb_peek(struct sk_buff *volatile* list)
 {
 	return *list;
@@ -314,7 +333,9 @@ struct sk_buff *skb_peek(struct sk_buff *volatile* list)
  *	anyway. Only the memcpy of upto 4K with ints off is not
  *	as nice as I'd like.
  */
- 
+/*
+ * 	从链表中取出一个skb 报文，复制之后返回给调用者
+ */
 struct sk_buff *skb_peek_copy(struct sk_buff *volatile* list)
 {
 	struct sk_buff *orig,*new;
@@ -366,13 +387,12 @@ struct sk_buff *skb_peek_copy(struct sk_buff *volatile* list)
 		new->link3=NULL;
 		new->sk=NULL;
 		new->free=1;
-	}
-	while(0);
-	
+	} while(0);
+
 	restore_flags(flags);
 	return(new);
-}	
-	
+}
+
 /*
  *	Free an sk_buff. This still knows about things it should
  *	not need to like protocols and sockets.
@@ -380,25 +400,25 @@ struct sk_buff *skb_peek_copy(struct sk_buff *volatile* list)
 
 void kfree_skb(struct sk_buff *skb, int rw)
 {
-  if (skb == NULL) {
-	printk("kfree_skb: skb = NULL\n");
-	return;
-  }
-  IS_SKB(skb);
-  if(skb->free == 2)
-  	printk("Warning: kfree_skb passed an skb that nobody set the free flag on!\n");
-  if(skb->list)
-  	printk("Warning: kfree_skb passed an skb still on a list.\n");
-  skb->magic = 0;
-  if (skb->sk) {
-	if (rw) {
-	     skb->sk->prot->rfree(skb->sk, skb->mem_addr, skb->mem_len);
-	} else {
-	     skb->sk->prot->wfree(skb->sk, skb->mem_addr, skb->mem_len);
+	if (skb == NULL) {
+		printk("kfree_skb: skb = NULL\n");
+		return;
 	}
-  } else {
-	kfree_skbmem(skb->mem_addr, skb->mem_len);
-  }
+	IS_SKB(skb);
+	if(skb->free == 2)
+		printk("Warning: kfree_skb passed an skb that nobody set the free flag on!\n");
+	if(skb->list)
+		printk("Warning: kfree_skb passed an skb still on a list.\n");
+	skb->magic = 0;
+	if (skb->sk) {
+		if (rw) {
+			skb->sk->prot->rfree(skb->sk, skb->mem_addr, skb->mem_len);
+		} else {
+			skb->sk->prot->wfree(skb->sk, skb->mem_addr, skb->mem_len);
+		}
+	} else {
+		kfree_skbmem(skb->mem_addr, skb->mem_len);
+	}
 }
 
 /*
@@ -416,10 +436,12 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 	skb->truesize=size;
 	skb->mem_len=size;
 	skb->mem_addr=skb;
+
 	/* 网络模块统计信息 */
 	net_memory+=size;
 	net_skbcount++;
 	skb->magic_debug_cookie=SK_GOOD_SKB;
+
 	return skb;
 }
 
