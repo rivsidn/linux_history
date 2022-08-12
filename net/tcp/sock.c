@@ -1462,26 +1462,26 @@ sfree(void *data, unsigned long len)
 void *
 sock_wmalloc(volatile struct sock *sk, unsigned long size, int force)
 {
-  void *tmp;
-  if (sk)
-    {
-       if (sk->wmem_alloc + size >= SK_WMEM_MAX && !force)
-	 {
-	    MPRINTK ("sock_wmalloc(%X,%d,%d) returning NULL\n",
-		     sk, size, force);
-	    return (NULL);
-	 }
-      cli();
-      sk->wmem_alloc+= size;
-      sti();
-    }
-   if (sk)
-     tmp = smalloc (size);
-   else
-     tmp = malloc (size);
+	void *tmp;
+	if (sk)
+	{
+		if (sk->wmem_alloc + size >= SK_WMEM_MAX && !force)
+		{
+			MPRINTK ("sock_wmalloc(%X,%d,%d) returning NULL\n",
+					sk, size, force);
+			return (NULL);
+		}
+		cli();
+		sk->wmem_alloc+= size;
+		sti();
+	}
+	if (sk)
+		tmp = smalloc (size);
+	else
+		tmp = malloc (size);
 
-  MPRINTK ("sock_wmalloc(%X,%d,%d) returning %X\n",sk, size, force, tmp);
-  return (tmp);
+	MPRINTK ("sock_wmalloc(%X,%d,%d) returning %X\n",sk, size, force, tmp);
+	return (tmp);
 }
 
 void *
@@ -1617,45 +1617,46 @@ volatile struct sock *get_sock (struct proto *prot, unsigned short num,
 
 void release_sock (volatile struct sock *sk)
 {
-  if (sk->blog) return;
-  /* see if we have any packets built up. */
+	if (sk->blog)
+		return;
+	/* see if we have any packets built up. */
 
-  cli();
-  sk->inuse = 1;
-  while (sk->back_log != NULL)
-    {
-      struct sk_buff *skb;
-      sk->blog = 1;
-      skb = sk->back_log;
-      PRINTK ("release_sock: skb = %X:\n",skb);
-      print_skb(skb);
-      if (skb->next != skb)
+	cli();
+	sk->inuse = 1;
+	while (sk->back_log != NULL)
 	{
-	  sk->back_log = skb->next;
-	  skb->prev->next = skb->next;
-	  skb->next->prev = skb->prev;
+		struct sk_buff *skb;
+		sk->blog = 1;
+		skb = sk->back_log;
+		PRINTK ("release_sock: skb = %X:\n",skb);
+		print_skb(skb);
+		if (skb->next != skb)
+		{
+			sk->back_log = skb->next;
+			skb->prev->next = skb->next;
+			skb->next->prev = skb->prev;
+		}
+		else
+		{
+			sk->back_log = NULL;
+		}
+		sti();
+		PRINTK ("sk->back_log = %X\n",sk->back_log);
+		if (sk->prot->rcv)
+			sk->prot->rcv(skb, skb->dev, sk->opt,
+					skb->saddr, skb->len, skb->daddr, 1,
+					/* only used for/by raw sockets. */
+					(struct ip_protocol *)sk->pair); 
+		cli();
 	}
-      else
+	sk->blog = 0;
+	sk->inuse = 0;
+	sti();
+	if (sk->dead && sk->state == TCP_CLOSE)
 	{
-	  sk->back_log = NULL;
+		/* should be about 2 rtt's */
+		sk->time_wait.len = min (sk->rtt * 2, TCP_DONE_TIME);
+		sk->timeout = TIME_DONE;
+		reset_timer ((struct timer *)&sk->time_wait);
 	}
-      sti();
-      PRINTK ("sk->back_log = %X\n",sk->back_log);
-      if (sk->prot->rcv)
-	sk->prot->rcv(skb, skb->dev, sk->opt,
-		      skb->saddr, skb->len, skb->daddr, 1,
-		      /* only used for/by raw sockets. */
-		      (struct ip_protocol *)sk->pair); 
-      cli();
-    }
-  sk->blog = 0;
-  sk->inuse = 0;
-  sti();
-  if (sk->dead && sk->state == TCP_CLOSE)
-    {
-        /* should be about 2 rtt's */
-       sk->time_wait.len = min (sk->rtt * 2, TCP_DONE_TIME);
-       sk->timeout = TIME_DONE;
-       reset_timer ((struct timer *)&sk->time_wait);
-    }
 }
