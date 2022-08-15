@@ -1851,54 +1851,52 @@ tcp_fin (volatile struct sock *sk, struct tcp_header *th,
 static volatile struct sock *
 tcp_accept (volatile struct sock *sk, int flags)
 {
-  volatile struct sock *newsk;
-  struct sk_buff *skb;
-  
-  PRINTK ("tcp_accept(sk=%X, flags=%X)\n", sk, flags);
-  print_sk(sk);
-  /* we need to make sure that this socket is listening, and that
-     it has something pending. */
-  
-  if (sk->state != TCP_LISTEN)
-    {
-      sk->err = EINVAL;
-      return (NULL); 
-    }
-  /* avoid the race. */
+	volatile struct sock *newsk;
+	struct sk_buff *skb;
 
-  sk->inuse = 1;
-  cli();
-  while ( (skb = get_firstr(sk)) == NULL )
-    {
-      if (flags & O_NONBLOCK)
+	PRINTK ("tcp_accept(sk=%X, flags=%X)\n", sk, flags);
+	print_sk(sk);
+
+	/* we need to make sure that this socket is listening, and that it has something pending. */
+
+	if (sk->state != TCP_LISTEN)
 	{
-	  sti();
-	  release_sock (sk);
-	  sk->err = EAGAIN;
-	  return (NULL);
+		sk->err = EINVAL;
+		return (NULL); 
 	}
+	/* avoid the race. */
 
-      release_sock (sk);
-      interruptible_sleep_on (sk->sleep);
-      if (current->signal & ~current->blocked)
+	sk->inuse = 1;
+	cli();
+	while ( (skb = get_firstr(sk)) == NULL )
 	{
-	   sti();
-	   sk->err = ERESTARTSYS;
-	   return (NULL);
+		if (flags & O_NONBLOCK)
+		{
+			sti();
+			release_sock (sk);
+			sk->err = EAGAIN;
+			return (NULL);
+		}
+
+		release_sock (sk);
+		interruptible_sleep_on (sk->sleep);
+		if (current->signal & ~current->blocked)
+		{
+			sti();
+			sk->err = ERESTARTSYS;
+			return (NULL);
+		}
+
+		sk->inuse = 1;
 	}
+	sti();
 
-      sk->inuse = 1;
-    }
-  sti();
-
-  /* now all we need to do is return skb->sk. */
-  newsk = skb->sk;
-  free_skb (skb, FREE_READ);
-  release_sock (sk);
-  return (newsk);
+	/* now all we need to do is return skb->sk. */
+	newsk = skb->sk;
+	free_skb (skb, FREE_READ);
+	release_sock (sk);
+	return (newsk);
 }
-
-
 
 /* this will initiate an outgoing connection. */
 static int
@@ -2492,33 +2490,29 @@ tcp_write_wakeup(volatile struct sock *sk)
 
 struct proto tcp_prot =
 {
-  sock_wmalloc,
-  sock_rmalloc,
-  sock_wfree,
-  sock_rfree,
-  sock_rspace,
-  sock_wspace,
-  tcp_close,
-  tcp_read,
-  tcp_write,
-  NULL,
-  NULL,
-  ip_build_header,
-  tcp_connect,
-  tcp_accept,
-  ip_queue_xmit,
-  tcp_retransmit,
-  tcp_write_wakeup,
-  tcp_read_wakeup,
-  tcp_rcv,
-  tcp_select,
-  tcp_ioctl,
-  NULL,
-  128,
-  0,
-  {NULL,}
+	sock_wmalloc,
+	sock_rmalloc,
+	sock_wfree,
+	sock_rfree,
+	sock_rspace,
+	sock_wspace,
+	tcp_close,
+	tcp_read,
+	tcp_write,
+	NULL,
+	NULL,
+	ip_build_header,
+	tcp_connect,
+	tcp_accept,
+	ip_queue_xmit,
+	tcp_retransmit,
+	tcp_write_wakeup,
+	tcp_read_wakeup,
+	tcp_rcv,
+	tcp_select,
+	tcp_ioctl,
+	NULL,
+	128,
+	0,
+	{NULL,}
 };
-
-
-
-

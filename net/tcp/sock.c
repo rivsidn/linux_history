@@ -213,58 +213,56 @@ unlock_skb (struct sk_buff *skb, int rw)
 static  int
 sk_inuse( struct proto *prot, int num)
 {
-  volatile struct sock *sk;
-  for (sk = prot->sock_array[num & (SOCK_ARRAY_SIZE -1 )];
-       sk != NULL; sk=sk->next)
-    {
-      if (sk->dummy_th.source == num) return (1);
-    }
-  return (0);
+	volatile struct sock *sk;
+	for (sk = prot->sock_array[num & (SOCK_ARRAY_SIZE -1 )];
+	     sk != NULL; sk=sk->next)
+	{
+		if (sk->dummy_th.source == num)
+			return (1);
+	}
+	return (0);
 }
 
 unsigned short
 get_new_socknum(struct proto *prot, unsigned short base)
 {
-  static int start=0;
-  /* used to cycle through the port numbers so the chances of
-     a confused connection drop. */
-
-  int i,j;
-  int best=0;
-  int size=32767; /* a big num. */
-  volatile struct sock *sk;
-  start++;
-  if (base == 0) base = PROT_SOCK+1+(start % 1024);
-  if (base <= PROT_SOCK)
-    {
-      base += PROT_SOCK+(start % 1024);
-    }
-
-  /* now look through the entire array and try to find an empty
-     ptr. */
-  for (i = 0; i < SOCK_ARRAY_SIZE; i++)
-    {
-      j = 0;
-      sk = prot->sock_array[(i+base+1) & (SOCK_ARRAY_SIZE -1)];
-      while (sk != NULL)
+	static int start=0;
+	/* used to cycle through the port numbers so the chances of a confused connection drop. */
+	int i,j;
+	int best=0;
+	int size=32767; /* a big num. */
+	volatile struct sock *sk;
+	start++;
+	if (base == 0)
+		base = PROT_SOCK+1+(start % 1024);
+	if (base <= PROT_SOCK)
 	{
-	  sk = sk->next;
-	  j++;
+		base += PROT_SOCK+(start % 1024);
 	}
-      if (j == 0) return (i+base+1);
-      if (j < size) 
+	/* now look through the entire array and try to find an empty ptr. */
+	for (i = 0; i < SOCK_ARRAY_SIZE; i++)
 	{
-	  best = i;
-	  size = j;
+		j = 0;
+		sk = prot->sock_array[(i+base+1) & (SOCK_ARRAY_SIZE -1)];
+		while (sk != NULL)
+		{
+			sk = sk->next;
+			j++;
+		}
+		if (j == 0)
+			return (i+base+1);
+		if (j < size) 
+		{
+			best = i;
+			size = j;
+		}
 	}
-    }
-  /* now make sure the one we want is not in use. */
-  while (sk_inuse (prot, base +best+1))
-    {
-      best += SOCK_ARRAY_SIZE;
-    }
-  return (best+base+1);
-  
+	/* now make sure the one we want is not in use. */
+	while (sk_inuse (prot, base +best+1))
+	{
+		best += SOCK_ARRAY_SIZE;
+	}
+	return (best+base+1);
 }
 
 void
@@ -644,15 +642,15 @@ ip_proto_getsockopt(struct socket *sock, int level, int optname,
 static int
 ip_proto_listen(struct socket *sock, int backlog)
 {
-  volatile struct sock *sk;
-  sk = sock->data;
-   if (sk == NULL)
-     {
-	printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
+	volatile struct sock *sk;
+	sk = sock->data;
+	if (sk == NULL)
+	{
+		printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
+		return (0);
+	}
+	sk->state = TCP_LISTEN;
 	return (0);
-     }
-  sk->state = TCP_LISTEN;
-  return (0);
 }
 
 /* Hardware should be inited here. */
@@ -926,61 +924,63 @@ static int
 ip_proto_bind (struct socket *sock, struct sockaddr *uaddr,
 	       int addr_len)
 {
-  struct sockaddr_in addr;
-  volatile struct sock *sk, *sk2;
-  unsigned short snum;
-  sk = sock->data;
-   if (sk == NULL)
-     {
-	printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
+	struct sockaddr_in addr;
+	volatile struct sock *sk, *sk2;
+	unsigned short snum;
+	sk = sock->data;
+	if (sk == NULL)
+	{
+		printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
+		return (0);
+	}
+	/* check this error. */
+	if (sk->state != TCP_CLOSE)
+		return (-EIO);
+	verify_area (uaddr, addr_len);
+	memcpy_fromfs (&addr, uaddr, min (sizeof (addr), addr_len));
+	if (addr.sin_family && addr.sin_family != AF_INET)
+		return (-EIO); /* this needs to be changed. */
+	snum = net16(addr.sin_port);
+	PRINTK ("bind sk =%X to port = %d\n", sk, snum);
+	print_sk (sk);
+	sk = sock->data;
+
+	/* we can't just leave the socket bound wherever it is, it might be bound
+	   to a priveledged port. However, since there seems to be a bug here,
+	   we will leave it if the port is not priveledged(sp?) */
+
+	if (snum == 0)
+	{
+		if (sk->num > PROT_SOCK)
+			return (0);
+		snum = get_new_socknum(sk->prot, 0);
+	}
+
+	if (snum <= PROT_SOCK && !suser())
+		return (-EPERM);
+
+	if (my_ip_addr(addr.sin_addr.s_addr) || addr.sin_addr.s_addr == 0)
+		sk->saddr = addr.sin_addr.s_addr;
+	PRINTK ("sock_array[%d] = %X:\n", snum & (SOCK_ARRAY_SIZE -1),
+			sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)]);
+	print_sk (sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)]);
+
+	/* make sure we are allowed to bind here. */
+	for (sk2 = sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)];
+			sk2 != NULL;
+			sk2 = sk2->next)
+	{
+		if (sk2->num != snum) continue;
+		if (sk2->saddr != sk->saddr) continue;
+		if (!sk->reuse) return (-EADDRINUSE);
+		if (!sk2->reuse) return (-EADDRINUSE);
+	}
+	remove_sock (sk);
+	put_sock(snum, sk);
+	sk->dummy_th.source = net16(sk->num);
+	sk->daddr = 0;
+	sk->dummy_th.dest = 0;
 	return (0);
-     }
-  /* check this error. */
-  if (sk->state != TCP_CLOSE) return (-EIO);
-  verify_area (uaddr, addr_len);
-  memcpy_fromfs (&addr, uaddr, min (sizeof (addr), addr_len));
-  if (addr.sin_family && addr.sin_family != AF_INET)
-    return (-EIO); /* this needs to be changed. */
-  snum = net16(addr.sin_port);
-  PRINTK ("bind sk =%X to port = %d\n", sk, snum);
-  print_sk (sk);
-  sk = sock->data;
-
-  /* we can't just leave the socket bound wherever it is, it might be bound
-     to a priveledged port. However, since there seems to be a bug here,
-     we will leave it if the port is not priveledged(sp?) */
-
-  if (snum == 0)
-    {
-       if ( sk->num > PROT_SOCK) return (0);
-       snum = get_new_socknum (sk->prot, 0);
-    }
-
-  if (snum <= PROT_SOCK && !suser())
-    return (-EPERM);
-
-  if (my_ip_addr(addr.sin_addr.s_addr) || addr.sin_addr.s_addr == 0)
-    sk->saddr = addr.sin_addr.s_addr;
-  PRINTK ("sock_array[%d] = %X:\n", snum & (SOCK_ARRAY_SIZE -1),
-	  sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)]);
-  print_sk (sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)]);
-
-  /* make sure we are allowed to bind here. */
-  for (sk2 = sk->prot->sock_array[snum & (SOCK_ARRAY_SIZE -1)];
-       sk2 != NULL;
-       sk2 = sk2->next)
-    {
-       if (sk2->num != snum) continue;
-       if (sk2->saddr != sk->saddr) continue;
-       if (!sk->reuse) return (-EADDRINUSE);
-       if (!sk2->reuse) return (-EADDRINUSE);
-    }
-  remove_sock (sk);
-  put_sock(snum, sk);
-  sk->dummy_th.source = net16(sk->num);
-  sk->daddr = 0;
-  sk->dummy_th.dest = 0;
-  return (0);
 }
 
 static int
@@ -1331,53 +1331,53 @@ print_mem (struct mem *m)
 static void *
 smalloc (unsigned long size)
 {
-   struct mem *head, *tail;
-   static unsigned short count;
-   int i;
-   int sum;
-   unsigned char *ptr;
+	struct mem *head, *tail;
+	static unsigned short count;
+	int i;
+	int sum;
+	unsigned char *ptr;
 
-   MPRINTK ("smalloc (size = %d)\n",size);
-   head = malloc (size + 2*sizeof (*head));
-   if (head == NULL) return (NULL);
-   tail = (struct mem *)((unsigned char *)(head+1) + size); 
+	MPRINTK ("smalloc (size = %d)\n",size);
+	head = malloc (size + 2*sizeof (*head));
+	if (head == NULL) return (NULL);
+	tail = (struct mem *)((unsigned char *)(head+1) + size); 
 
-   head->other = tail;
-   tail->other = head;
+	head->other = tail;
+	tail->other = head;
 
-   tail->len = size;
-   head->len = size;
-   for (i = 0; i < 10; i++)
-     {
-	tail->buff[i]=count++;
-	head->buff[i]=count;
-     }
+	tail->len = size;
+	head->len = size;
+	for (i = 0; i < 10; i++)
+	{
+		tail->buff[i]=count++;
+		head->buff[i]=count;
+	}
 
-   ptr = (unsigned char *)head;
-   head->check = 0;
-   sum = 0;
+	ptr = (unsigned char *)head;
+	head->check = 0;
+	sum = 0;
 
-   for (i = 0; i < sizeof (*head); i ++)
-     {
-	sum+= ptr[i]; 
-     }
+	for (i = 0; i < sizeof (*head); i ++)
+	{
+		sum+= ptr[i]; 
+	}
 
-   head->check = ~sum;
-   ptr = (unsigned char *)tail;
-   tail->check = 0;
-   sum = 0;
+	head->check = ~sum;
+	ptr = (unsigned char *)tail;
+	tail->check = 0;
+	sum = 0;
 
-   for (i = 0; i < sizeof (*head); i ++)
-     {
-	sum+= ptr[i]; 
-     }
+	for (i = 0; i < sizeof (*head); i ++)
+	{
+		sum+= ptr[i]; 
+	}
 
-   tail->check = ~sum;
-   MPRINTK ("head = %X:\n", head);
-   print_mem(head);
-   MPRINTK ("tail = %X:\n", tail);
-   print_mem(tail);
-   return (head+1);
+	tail->check = ~sum;
+	MPRINTK ("head = %X:\n", head);
+	print_mem(head);
+	MPRINTK ("tail = %X:\n", tail);
+	print_mem(tail);
+	return (head+1);
 }
 
 void
@@ -1487,54 +1487,57 @@ sock_wmalloc(volatile struct sock *sk, unsigned long size, int force)
 void *
 sock_rmalloc(volatile struct sock *sk, unsigned long size, int force)
 {
-   struct mem *tmp;
-   if (sk )
-     {
-	if (sk->rmem_alloc + size >= SK_RMEM_MAX && !force)
-	  {
-	     MPRINTK ("sock_rmalloc(%X,%d,%d) returning NULL\n",sk,size,force);
-	     return (NULL);
-	  }
-	cli();
-	sk->rmem_alloc+= size;
-	sti();
-     }
-   if (sk)
-     tmp = smalloc (size);
-   else
-     tmp = malloc (size);
+	struct mem *tmp;
+	if (sk )
+	{
+		if (sk->rmem_alloc + size >= SK_RMEM_MAX && !force)
+		{
+			MPRINTK ("sock_rmalloc(%X,%d,%d) returning NULL\n",sk,size,force);
+			return (NULL);
+		}
+		cli();
+		sk->rmem_alloc+= size;
+		sti();
+	}
+	if (sk)
+		tmp = smalloc (size);
+	else
+		tmp = malloc (size);
 
-   MPRINTK ("sock_rmalloc(%X,%d,%d) returning %X\n",sk, size, force, tmp);
-   return (tmp);
+	MPRINTK ("sock_rmalloc(%X,%d,%d) returning %X\n",sk, size, force, tmp);
+	return (tmp);
 }
 
 
 unsigned long
 sock_rspace (volatile struct sock *sk)
 {
-   int amt;
-   if (sk != NULL)
-     {
-	if (sk->rmem_alloc >= SK_RMEM_MAX-2*MIN_WINDOW) return (0);
-	amt = min ((SK_RMEM_MAX-sk->rmem_alloc)/2-MIN_WINDOW, MAX_WINDOW);
-	if (amt < 0) return (0);
-	return (amt);
-     }
-   return (0);
+	int amt;
+	if (sk != NULL)
+	{
+		if (sk->rmem_alloc >= SK_RMEM_MAX-2*MIN_WINDOW)
+			return (0);
+		amt = min((SK_RMEM_MAX-sk->rmem_alloc)/2 - MIN_WINDOW, MAX_WINDOW);
+		if (amt < 0)
+			return (0);
+		return (amt);
+	}
+	return (0);
 }
 
 unsigned long
 sock_wspace (volatile struct sock *sk)
 {
-  if (sk != NULL)
-    {
-       if (sk->shutdown & SEND_SHUTDOWN) return (0);
-       if (sk->wmem_alloc >= SK_WMEM_MAX) return (0);
-       return (SK_WMEM_MAX-sk->wmem_alloc );
-    }
-  return (0);
+	if (sk != NULL)
+	{
+		if (sk->shutdown & SEND_SHUTDOWN)
+			return (0);
+		if (sk->wmem_alloc >= SK_WMEM_MAX)
+			return (0);
+		return (SK_WMEM_MAX - sk->wmem_alloc);
+	}
+	return (0);
 }
-
 
 void
 sock_wfree (volatile struct sock *sk, void *mem, unsigned long size)

@@ -539,7 +539,7 @@ sock_listen(int fd, int backlog)
 		return -EINVAL;
 	}
 	if (sock->ops && sock->ops->listen)
-	  sock->ops->listen (sock, backlog);
+		sock->ops->listen (sock, backlog);
 	sock->flags |= SO_ACCEPTCON;
 	return 0;
 }
