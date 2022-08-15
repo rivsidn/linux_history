@@ -37,48 +37,56 @@ struct sk_buff_head {
 
 
 struct sk_buff {
-  struct sk_buff		* volatile next;	/* Next buffer in list */
-  struct sk_buff		* volatile prev;	/* Previous buffer in list */
+	struct sk_buff		* volatile next;	/* Next buffer in list */
+	struct sk_buff		* volatile prev;	/* Previous buffer in list */
 #if CONFIG_SKB_CHECK
-  int				magic_debug_cookie;
+	int			magic_debug_cookie;
 #endif
-  struct sk_buff		* volatile link3;	/* Link for IP protocol level buffer chains 	*/
-  struct sock			*sk;			/* Socket we are owned by 			*/
-  volatile unsigned long	when;			/* used to compute rtt's			*/
-  struct timeval		stamp;			/* Time we arrived				*/
-  struct device			*dev;			/* Device we arrived on/are leaving by		*/
-  union {
-	struct tcphdr	*th;
-	struct ethhdr	*eth;
-	struct iphdr	*iph;
-	struct udphdr	*uh;
-	unsigned char	*raw;
-	unsigned long	seq;
-  } h;
-  struct iphdr			*ip_hdr;		/* For IPPROTO_RAW 				*/
-  unsigned long 		len;			/* Length of actual data			*/
-  unsigned long 		saddr;			/* IP source address				*/
-  unsigned long 		daddr;			/* IP target address				*/
-  unsigned long			raddr;			/* IP next hop address				*/
-  volatile char 		acked,			/* Are we acked ?				*/
-				used,			/* Are we in use ?				*/
-				free,			/* How to free this buffer			*/
-				arp;			/* Has IP/ARP resolution finished		*/
-  unsigned char			tries,			/* Times tried					*/
-  				lock,			/* Are we locked ?				*/
-  				localroute,		/* Local routing asserted for this frame	*/
-  				pkt_type;		/* Packet class					*/
+	struct sk_buff		* volatile link3;	/* Link for IP protocol level buffer chains 	*/
+	struct sock		*sk;			/* Socket we are owned by 			*/
+	volatile unsigned long	when;			/* used to compute rtt's			*/
+	struct timeval		stamp;			/* Time we arrived				*/
+	struct device		*dev;			/* Device we arrived on/are leaving by		*/
+	union {
+		struct tcphdr	*th;
+		struct ethhdr	*eth;
+		struct iphdr	*iph;
+		struct udphdr	*uh;
+		unsigned char	*raw;
+		unsigned long	seq;
+	} h;
+	struct iphdr		*ip_hdr;		/* For IPPROTO_RAW 				*/
+	unsigned long 		len;			/* Length of actual data			*/
+	unsigned long 		saddr;			/* IP source address				*/
+	unsigned long 		daddr;			/* IP target address				*/
+	unsigned long		raddr;			/* IP next hop address				*/
+	volatile char 		acked,			/* Are we acked ?				*/
+				 used,			/* Are we in use ?				*/
+				 free,			/* How to free this buffer			*/
+				 arp;			/* Has IP/ARP resolution finished		*/
+	unsigned char		tries,			/* Times tried					*/
+				lock,			/* Are we locked ?				*/
+				localroute,		/* Local routing asserted for this frame	*/
+				pkt_type;		/* Packet class					*/
 #define PACKET_HOST		0			/* To us					*/
 #define PACKET_BROADCAST	1			/* To all					*/
 #define PACKET_MULTICAST	2			/* To group					*/
 #define PACKET_OTHERHOST	3			/* To someone else 				*/
-  unsigned short		users;			/* User count - see datagram.c,tcp.c 		*/
-  unsigned short		protocol;		/* Packet protocol from driver. 		*/
-  unsigned short		truesize;		/* Buffer size 					*/
-  unsigned char			*head;			/* Head of buffer 				*/
-  unsigned char			*data;			/* Data head pointer				*/
-  unsigned char			*tail;			/* Tail pointer					*/
-  unsigned char 		*end;			/* End pointer					*/
+	unsigned short		users;			/* User count - see datagram.c,tcp.c 		*/
+	unsigned short		protocol;		/* Packet protocol from driver. 		*/
+	unsigned short		truesize;		/* Buffer size 					*/
+	/*
+	 * head		内存头指针
+	 * data		数据头指针
+	 * tail		数据尾指针
+	 * end		内存尾指针
+	 *
+	 * 内存头指针和尾指针是固定的，移动的时候是移动data、tail指针.
+	 */
+	unsigned char		*head;			/* Head of buffer 				*/
+	unsigned char		*data;			/* Data head pointer				*/
+	unsigned char		*tail;			/* Tail pointer					*/
+	unsigned char 		*end;			/* End pointer					*/
 };
 
 #define SK_WMEM_MAX	32767

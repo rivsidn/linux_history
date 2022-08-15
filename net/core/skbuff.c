@@ -355,7 +355,22 @@ void skb_unlink(struct sk_buff *skb)
 /*
  *	Add data to an sk_buff
  */
- 
+
+/*
+ *   +-------------------------------------------------------------+----------+
+ *   |                                                             | sk_buff  |
+ *   +-------------------------------------------------------------+----------+
+ *   ^         ^                                       ^           ^
+ *   |         |  <----------------------------------> |           |
+ *   |         |                len                    |           |
+ *
+ * head      data                                     tail        end
+ *
+ *     <------  ------>                                 ------->
+ *   skb_push() skb_pull()                              skb_put()
+ *
+ */
+
 unsigned char *skb_put(struct sk_buff *skb, int len)
 {
 	unsigned char *tmp=skb->tail;
@@ -363,7 +378,8 @@ unsigned char *skb_put(struct sk_buff *skb, int len)
 	skb->tail+=len;
 	skb->len+=len;
 	IS_SKB(skb);
-	if(skb->tail>skb->end)
+	/* 如果存放的数据超过了skb->end 则报错 */
+	if(skb->tail > skb->end)
 		panic("skput:over: %p:%d", __builtin_return_address(0),len);
 	return tmp;
 }
@@ -401,6 +417,7 @@ int skb_tailroom(struct sk_buff *skb)
 	return skb->end-skb->tail;
 }
 
+/* 前后保留一部分内存 */
 void skb_reserve(struct sk_buff *skb, int len)
 {
 	IS_SKB(skb);
@@ -508,11 +525,11 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 
 	size=(size+15)&~15;		/* Allow for alignments. Make a multiple of 16 bytes */
 	size+=sizeof(struct sk_buff);	/* And stick the control itself on the end */
-	
+
 	/*
 	 *	Allocate some space
 	 */
-	 
+
 	bptr=(unsigned char *)kmalloc(size,priority);
 	if (bptr == NULL)
 	{
@@ -531,7 +548,8 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 	 *	skb at the _end_ not the start of the memory block.
 	 */
 	net_allocs++;
-	
+
+	/* skb 放在申请内存的末尾 */
 	skb=(struct sk_buff *)(bptr+size)-1;
 
 	skb->free = 2;	/* Invalid so we pick up forgetful users */
@@ -556,7 +574,7 @@ struct sk_buff *alloc_skb(unsigned int size,int priority)
 	skb->head=bptr;
 	skb->data=bptr;
 	skb->tail=bptr;
-	skb->end=bptr+len;
+	skb->end=bptr+len;	/* 此处的len是实际申请的内存大小 */
 	skb->len=0;
 	return skb;
 }
