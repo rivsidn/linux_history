@@ -652,6 +652,7 @@ ip_proto_listen(struct socket *sock, int backlog)
 		printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
 		return (0);
 	}
+	/* 设置模式为监听模式 */
 	sk->state = TCP_LISTEN;
 	return (0);
 }
