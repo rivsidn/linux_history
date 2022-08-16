@@ -210,12 +210,12 @@ unlock_skb (struct sk_buff *skb, int rw)
      free_skb (skb, rw);
 }
 
+/* 此处的num 类似一个hash key 值，通过num 值可以知道所在的数组 */
 static  int
 sk_inuse( struct proto *prot, int num)
 {
 	volatile struct sock *sk;
-	for (sk = prot->sock_array[num & (SOCK_ARRAY_SIZE -1 )];
-	     sk != NULL; sk=sk->next)
+	for (sk = prot->sock_array[num & (SOCK_ARRAY_SIZE -1 )]; sk != NULL; sk=sk->next)
 	{
 		if (sk->dummy_th.source == num)
 			return (1);
@@ -223,6 +223,7 @@ sk_inuse( struct proto *prot, int num)
 	return (0);
 }
 
+/* 获取端口号 */
 unsigned short
 get_new_socknum(struct proto *prot, unsigned short base)
 {
@@ -251,7 +252,7 @@ get_new_socknum(struct proto *prot, unsigned short base)
 		}
 		if (j == 0)
 			return (i+base+1);
-		if (j < size) 
+		if (j < size)
 		{
 			best = i;
 			size = j;
@@ -268,59 +269,61 @@ get_new_socknum(struct proto *prot, unsigned short base)
 void
 put_sock(unsigned short num, volatile struct sock *sk)
 {
-   volatile struct sock *sk1;
-   volatile struct sock *sk2;
-   int mask;
+	volatile struct sock *sk1;
+	volatile struct sock *sk2;
+	int mask;
 
-   PRINTK ("put_sock (num = %d, sk = %X\n", num, sk);
-   sk->num = num;
-   sk->next = NULL;
-   num = num & (SOCK_ARRAY_SIZE -1);
+	PRINTK ("put_sock (num = %d, sk = %X\n", num, sk);
+	sk->num = num;
+	sk->next = NULL;
+	num = num & (SOCK_ARRAY_SIZE -1);
 
-   /* we can't have an interupt renter here. */
-   cli();
-   if (sk->prot->sock_array[num] == NULL)
-     {
-	sk->prot->sock_array[num] = sk;
+	/* we can't have an interupt renter here. */
+	cli();
+	if (sk->prot->sock_array[num] == NULL)
+	{
+		sk->prot->sock_array[num] = sk;
+		sti();
+		return;
+	}
 	sti();
-	return;
-     }
-   sti();
-   for (mask = 0xff000000; mask != 0xffffffff; mask = (mask >> 8) | mask)
-     {
-	if (mask & sk->saddr)
-	  {
-	     mask = mask << 8;
-	     break;
-	  }
-     }
+	for (mask = 0xff000000; mask != 0xffffffff; mask = (mask >> 8) | mask)
+	{
+		/* 此处sk->saddr 存储的应该是网络字节序 */
+		if (mask & sk->saddr)
+		{
+			mask = mask << 8;
+			break;
+		}
+	}
 
-   PRINTK ("mask = %X\n", mask);
+	PRINTK ("mask = %X\n", mask);
 
-   cli();
-   sk1 = sk->prot->sock_array[num];
-   for (sk2 = sk1; sk2 != NULL; sk2=sk2->next)
-     {
-	if (!(sk2->saddr & mask))
-	  {
-	     if (sk2 == sk1)
-	       {
-		  sk->next = sk->prot->sock_array[num];
-		  sk->prot->sock_array[num] = sk;
-		  sti();
-		  return;
-	       }
-	     sk->next = sk2;
-	     sk1->next= sk;
-	     sti();
-	     return;
-	  }
-	sk1 = sk2;
-     }
-   /* goes at the end. */
-   sk->next = NULL;
-   sk1->next = sk;
-   sti();
+	/* 将sock{} 放到sock_array[] 中，按照mask 由大到小排序 */
+	cli();
+	sk1 = sk->prot->sock_array[num];
+	for (sk2 = sk1; sk2 != NULL; sk2=sk2->next)
+	{
+		if (!(sk2->saddr & mask))
+		{
+			if (sk2 == sk1)
+			{
+				sk->next = sk->prot->sock_array[num];
+				sk->prot->sock_array[num] = sk;
+				sti();
+				return;
+			}
+			sk->next = sk2;
+			sk1->next= sk;
+			sti();
+			return;
+		}
+		sk1 = sk2;
+	}
+	/* goes at the end. */
+	sk->next = NULL;
+	sk1->next = sk;
+	sti();
 }
 
 
@@ -699,7 +702,6 @@ ip_proto_create (struct socket *sock, int protocol)
 		return (-ENOMEM);
 	sk->num = 0;
 
-
 	switch (sock->type)
 	{
 		case SOCK_STREAM:
@@ -849,6 +851,7 @@ ip_proto_create (struct socket *sock, int protocol)
 	}
 	else
 	{
+		/* 此时的sock{}取得一个端口号 */
 		sk->num = get_new_socknum(sk->prot, 0);
 	}
 	/* make sure there was a free socket. */
@@ -940,6 +943,7 @@ ip_proto_bind (struct socket *sock, struct sockaddr *uaddr,
 	memcpy_fromfs (&addr, uaddr, min (sizeof (addr), addr_len));
 	if (addr.sin_family && addr.sin_family != AF_INET)
 		return (-EIO); /* this needs to be changed. */
+	/* 传递过来的是网络字节序，转换成本机字节序，名称有歧义 */
 	snum = net16(addr.sin_port);
 	PRINTK ("bind sk =%X to port = %d\n", sk, snum);
 	print_sk (sk);
@@ -970,12 +974,16 @@ ip_proto_bind (struct socket *sock, struct sockaddr *uaddr,
 			sk2 != NULL;
 			sk2 = sk2->next)
 	{
+		/* 如果不相等，重新开始比较 */
 		if (sk2->num != snum) continue;
 		if (sk2->saddr != sk->saddr) continue;
+		/* 如果相等，两个必须都设置了reuse，否则报错 */
 		if (!sk->reuse) return (-EADDRINUSE);
 		if (!sk2->reuse) return (-EADDRINUSE);
 	}
+	/* 删除sock{} */
 	remove_sock (sk);
+	/* 重新添加sock{}，因为改变了IP地址，放的位置可能发生变化，所以需要重新添加 */
 	put_sock(snum, sk);
 	sk->dummy_th.source = net16(sk->num);
 	sk->daddr = 0;
