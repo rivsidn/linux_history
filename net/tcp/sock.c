@@ -1045,62 +1045,64 @@ ip_proto_socketpair (struct socket *sock1, struct socket *sock2)
   return (-EOPNOTSUPP);
 }
 
+/* accept 之前没有TCP报文交互 */
 static int
 ip_proto_accept (struct socket *sock, struct socket *newsock, int flags)
 {
-  volatile struct sock *sk1, *sk2;
-  sk1= sock->data;
-   if (sk1 == NULL)
-     {
-	printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
-	return (0);
-     }
-  newsock->data = NULL;
-  if (sk1->prot->accept == NULL) return (-EOPNOTSUPP);
-  /* restore the state if we have been interrupted, and
-     then returned. */
-  if (sk1->pair != NULL )
-    {
-      sk2 = sk1->pair;
-      sk1->pair = NULL;
-    }
-  else
-    {
-      sk2 = sk1->prot->accept (sk1,flags);
-      if (sk2 == NULL)
-	return (-sk1->err);
-    }
-  newsock->data = (void *)sk2;
-  sk2->sleep = (void *)newsock->wait;
-  newsock->conn = NULL;
-  if (flags & O_NONBLOCK)
-    return (0);
-
-  cli(); /* avoid the race. */
-  while (sk2->state == TCP_SYN_RECV)
-    {
-      interruptible_sleep_on (sk2->sleep);
-      if (current->signal & ~current->blocked)
+	volatile struct sock *sk1, *sk2;
+	sk1= sock->data;
+	if (sk1 == NULL)
 	{
-	   sti();
-	   sk1->pair = sk2;
-	   sk2->sleep = NULL;
-	   newsock->data = NULL;
-	   return (-ERESTARTSYS);
+		printk ("Warning: sock->data = NULL: %d\n" ,__LINE__);
+		return (0);
 	}
-    }
-  sti();
+	newsock->data = NULL;
+	if (sk1->prot->accept == NULL)
+		return (-EOPNOTSUPP);
+	/* restore the state if we have been interrupted, and then returned. */
+	if (sk1->pair != NULL )
+	{
+		sk2 = sk1->pair;
+		sk1->pair = NULL;
+	}
+	else
+	{
+		sk2 = sk1->prot->accept (sk1,flags);
+		if (sk2 == NULL)
+			return (-sk1->err);
+	}
+	newsock->data = (void *)sk2;
+	sk2->sleep = (void *)newsock->wait;
+	newsock->conn = NULL;
+	if (flags & O_NONBLOCK)
+		return (0);
 
-  if (sk2->state != TCP_ESTABLISHED && sk2->err)
-    {
-      int err;
-      err = -sk2->err;
-      destroy_sock (sk2);
-      newsock->data = NULL;
-      return (err);
-    }
-  newsock->state = SS_CONNECTED;
-  return (0);
+	cli(); /* avoid the race. */
+	while (sk2->state == TCP_SYN_RECV)
+	{
+		/* TODO: 这里何时会被唤醒 */
+		interruptible_sleep_on (sk2->sleep);
+		if (current->signal & ~current->blocked)
+		{
+			sti();
+			sk1->pair = sk2;
+			sk2->sleep = NULL;
+			newsock->data = NULL;
+			return (-ERESTARTSYS);
+		}
+	}
+	sti();
+
+	if (sk2->state != TCP_ESTABLISHED && sk2->err)
+	{
+		int err;
+		err = -sk2->err;
+		destroy_sock (sk2);
+		newsock->data = NULL;
+		return (err);
+	}
+	newsock->state = SS_CONNECTED;
+	return (0);
 }
 
 static int
@@ -1591,48 +1593,55 @@ sock_rfree (volatile struct sock *sk, void *mem, unsigned long size)
      }
 }
 
-
-/* This routine must find a socket given a tcp header.  Everyhting
-   is assumed to be in net order. */
-
+/* This routine must find a socket given a tcp header.  Everyhting is assumed to be in net order. */
+/*
+ * 获取sock{} 结构体，所有的东西都是网络序.
+ *
+ * num		本地端口号
+ * raddr	对端IP地址
+ * rnum		对端端口号
+ * laddr	本地IP地址
+ */
 volatile struct sock *get_sock (struct proto *prot, unsigned short num,
 				unsigned long raddr,
 				unsigned short rnum, unsigned long laddr)
 {
-  volatile struct sock *s;
-  PRINTK ("get_sock (prot=%X, num=%d, raddr=%X, rnum=%d, laddr=%X)\n",
-	  prot, num, raddr, rnum, laddr);
+	volatile struct sock *s;
+	PRINTK ("get_sock (prot=%X, num=%d, raddr=%X, rnum=%d, laddr=%X)\n",
+			prot, num, raddr, rnum, laddr);
 
-  /* SOCK_ARRAY_SIZE must be a power of two.  This will work better
-     than a prime unless 3 or more sockets end up using the same
-     array entry.  This should not be a problem because most
-     well known sockets don't overlap that much, and for
-     the other ones, we can just be careful about picking our
-     socket number when we choose an arbitrary one. */
+	/* SOCK_ARRAY_SIZE must be a power of two.  This will work better
+	   than a prime unless 3 or more sockets end up using the same
+	   array entry.  This should not be a problem because most
+	   well known sockets don't overlap that much, and for
+	   the other ones, we can just be careful about picking our
+	   socket number when we choose an arbitrary one. */
 
-  for (s=prot->sock_array[num&(SOCK_ARRAY_SIZE-1)]; s != NULL; s=s->next)
-    {
-      if (s->num == num)
+	for (s=prot->sock_array[num&(SOCK_ARRAY_SIZE-1)]; s != NULL; s=s->next)
 	{
-	  /* we need to see if this is the socket that we want. */
-	  if (!ip_addr_match (s->daddr, raddr))
-	    continue;
-	  if (s->dummy_th.dest != rnum && s->dummy_th.dest != 0)
-	    continue;
-	  if (!ip_addr_match (s->saddr, laddr))
-	    continue;
-	  return (s);
+		/* 匹配对应的sock{} */
+		if (s->num == num)
+		{
+			/* we need to see if this is the socket that we want. */
+			if (!ip_addr_match (s->daddr, raddr))
+				continue;
+			if (s->dummy_th.dest != rnum && s->dummy_th.dest != 0)
+				continue;
+			if (!ip_addr_match (s->saddr, laddr))
+				continue;
+			return (s);
+		}
 	}
-    }
-  return (NULL);
+	return (NULL);
 }
 
 void release_sock (volatile struct sock *sk)
 {
+	/* 正在下边处理流程中，直接跳过 */
 	if (sk->blog)
 		return;
-	/* see if we have any packets built up. */
 
+	/* see if we have any packets built up. */
 	cli();
 	sk->inuse = 1;
 	while (sk->back_log != NULL)
@@ -1658,12 +1667,13 @@ void release_sock (volatile struct sock *sk)
 			sk->prot->rcv(skb, skb->dev, sk->opt,
 					skb->saddr, skb->len, skb->daddr, 1,
 					/* only used for/by raw sockets. */
-					(struct ip_protocol *)sk->pair); 
+					(struct ip_protocol *)sk->pair);
 		cli();
 	}
 	sk->blog = 0;
 	sk->inuse = 0;
 	sti();
+	/* 设置定时器 */
 	if (sk->dead && sk->state == TCP_CLOSE)
 	{
 		/* should be about 2 rtt's */

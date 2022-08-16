@@ -69,24 +69,26 @@ print_th (struct tcp_header *th)
    PRINTK ("options = %d %d %d %d\n", ptr[0], ptr[1], ptr[2], ptr[3]);
  }
 
- /* This routine grabs the first thing off of a rcv queue. */
+/* This routine grabs the first thing off of a rcv queue. */
+/* 获取接收队列的第一个报文 */
 static  struct sk_buff *
 get_firstr(volatile struct sock *sk)
 {
-   struct sk_buff *skb;
-   skb = sk->rqueue;
-   if (skb == NULL) return (NULL);
-   sk->rqueue = skb->next;
-   if (sk->rqueue == skb)
-     {
-       sk->rqueue = NULL;
-     }
-   else
-     {
-       sk->rqueue->prev=skb->prev;
-       sk->rqueue->prev->next = sk->rqueue;
-     }
-   return (skb);
+	struct sk_buff *skb;
+	skb = sk->rqueue;
+	if (skb == NULL)
+		return (NULL);
+	sk->rqueue = skb->next;
+	if (sk->rqueue == skb)
+	{
+		sk->rqueue = NULL;
+	}
+	else
+	{
+		sk->rqueue->prev=skb->prev;
+		sk->rqueue->prev->next = sk->rqueue;
+	}
+	return (skb);
 }
 
 static  long
@@ -249,6 +251,7 @@ tcp_ioctl (volatile struct sock *sk, int cmd, unsigned long arg)
 
 
 /* this routine computes a tcp checksum */
+/* 计算校验和 */
 static  unsigned short
 tcp_check (struct tcp_header *th, int len, unsigned long saddr,
 	   unsigned long daddr)
@@ -311,21 +314,21 @@ tcp_check (struct tcp_header *th, int len, unsigned long saddr,
 		: "si", "ax", "bx");
      }
    
-   /* we only want the bottom 16 bits, but we never cleared
-      the top 16. */
+   /* we only want the bottom 16 bits, but we never cleared the top 16. */
    return ((~sum) & 0xffff);
 }
 
 
 static  void
 tcp_send_check (struct tcp_header *th, unsigned long saddr, 
-		 unsigned long daddr, int len, volatile struct sock *sk)
- {
+		unsigned long daddr, int len, volatile struct sock *sk)
+{
 
-   th->check = 0;
-   if (sk && sk->no_check) return;
-   th->check = tcp_check (th, len, saddr, daddr);
-   return;
+	th->check = 0;
+	if (sk && sk->no_check)
+		return;
+	th->check = tcp_check (th, len, saddr, daddr);
+	return;
 }
 
  /* This routine sends an ack and also updates the window. */
@@ -723,62 +726,62 @@ static  int
 tcp_read_urg(volatile struct sock * sk,
 	     unsigned char *to, int len, unsigned flags)
 {
-    int copied = 0;
-    struct sk_buff *skb;
-    PRINTK ("tcp_read_urg(sk=%X, to=%X, len=%d, flags=%X)\n",
-	    sk, to, len, flags);
-    print_sk(sk);
-    while (len > 0)
-      {
-	 sk->inuse = 1;
-	  while (sk->urg==0 || sk->rqueue == NULL)
-	    {
-	       /* now at this point, we may have gotten some data. */
-	       release_sock (sk);
-		if (sk->state > TCP_CLOSING)
-		  {
-		      if (copied) return (copied);
-		      return (-ENOTCONN);
-		  }
-	       cli();
-	       if (sk->urg == 0 || sk->rqueue == NULL)
-		 {
-		    interruptible_sleep_on (sk->sleep);
-		    if (current->signal & ~current->blocked)
-		      {
-			 sti();
-			 if (copied) return (copied);
-			 return (-ERESTARTSYS);
-		      }
-		 }
-	       sti();
-	       sk->inuse = 1;
-	    }
-	  /* now we have some urgent data, we must find it.*/
-	  for (skb = sk->rqueue->next; skb->next != sk->rqueue;
-	       skb = skb->next)
-	    {
-		int offset;
-		int amt;
-		if (!skb->h.th->urg) continue;
-		offset = 0;
-		amt = min(skb->h.th->urg_ptr,len);
-		verify_area (to, amt);
-		memcpy_tofs (to, (unsigned char *)(skb->h.th) +
-			     skb->h.th->doff*4
-			     + offset, amt);
+	int copied = 0;
+	struct sk_buff *skb;
+	PRINTK ("tcp_read_urg(sk=%X, to=%X, len=%d, flags=%X)\n",
+			sk, to, len, flags);
+	print_sk(sk);
+	while (len > 0)
+	{
+		sk->inuse = 1;
+		while (sk->urg==0 || sk->rqueue == NULL)
+		{
+			/* now at this point, we may have gotten some data. */
+			release_sock (sk);
+			if (sk->state > TCP_CLOSING)
+			{
+				if (copied) return (copied);
+				return (-ENOTCONN);
+			}
+			cli();
+			if (sk->urg == 0 || sk->rqueue == NULL)
+			{
+				interruptible_sleep_on (sk->sleep);
+				if (current->signal & ~current->blocked)
+				{
+					sti();
+					if (copied) return (copied);
+					return (-ERESTARTSYS);
+				}
+			}
+			sti();
+			sk->inuse = 1;
+		}
+		/* now we have some urgent data, we must find it.*/
+		for (skb = sk->rqueue->next; skb->next != sk->rqueue;
+				skb = skb->next)
+		{
+			int offset;
+			int amt;
+			if (!skb->h.th->urg) continue;
+			offset = 0;
+			amt = min(skb->h.th->urg_ptr,len);
+			verify_area (to, amt);
+			memcpy_tofs (to, (unsigned char *)(skb->h.th) +
+					skb->h.th->doff*4
+					+ offset, amt);
 
-		if (!(flags & MSG_PEEK))
-		  {
-		     skb->urg_used = 1;
-		     sk->urg --;
-		  }
-		release_sock (sk);
-		copied += amt;
-		return (copied);
-	    }
-      }
-    return (0);
+			if (!(flags & MSG_PEEK))
+			{
+				skb->urg_used = 1;
+				sk->urg --;
+			}
+			release_sock (sk);
+			copied += amt;
+			return (copied);
+		}
+	}
+	return (0);
 }
 
 /* This routine copies from a sock struct into the user buffer. */
@@ -994,10 +997,8 @@ tcp_reset(unsigned long saddr, unsigned long daddr, struct tcp_header *th,
 }
 
 
-/* This routine handles a connection request.  This should make sure
-   we haven't already responded. */
-/* Because of the way BSD works, we have to send a syn/ack now. This also
- means it will be harder to close a socket which is listening. */
+/* This routine handles a connection request.  This should make sure we haven't already responded. */
+/* Because of the way BSD works, we have to send a syn/ack now. This also means it will be harder to close a socket which is listening. */
 
 static  void
 tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
@@ -1858,7 +1859,6 @@ tcp_accept (volatile struct sock *sk, int flags)
 	print_sk(sk);
 
 	/* we need to make sure that this socket is listening, and that it has something pending. */
-
 	if (sk->state != TCP_LISTEN)
 	{
 		sk->err = EINVAL;
@@ -1879,6 +1879,7 @@ tcp_accept (volatile struct sock *sk, int flags)
 		}
 
 		release_sock (sk);
+		/* TODO: 此处是何时唤醒的？ */
 		interruptible_sleep_on (sk->sleep);
 		if (current->signal & ~current->blocked)
 		{
@@ -1983,49 +1984,49 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 }
 
 
-/* this functions checks to see if the tcp header is actually
-   acceptible. */
+/* this functions checks to see if the tcp header is actually acceptible. */
 
 static  int
 tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 	      struct options *opt, unsigned long saddr)
 {
-   /* this isn't quite right.  sk->acked_seq could be more recent
-      than sk->window.  This is however close enough.  We will accept
-      slightly more packets than we should, but it should not cause
-      problems unless someone is trying to forge packets. */
+	/* this isn't quite right.  sk->acked_seq could be more recent
+	   than sk->window.  This is however close enough.  We will accept
+	   slightly more packets than we should, but it should not cause
+	   problems unless someone is trying to forge packets. */
 
-  if (between(th->seq, sk->acked_seq, sk->acked_seq + sk->window)||
-      between(th->seq + len-sizeof (*th), sk->acked_seq+1, 
-	      sk->acked_seq + sk->window))
-    {
-       return (1);
-    }
+	if (between(th->seq, sk->acked_seq, sk->acked_seq + sk->window)||
+			between(th->seq + len-sizeof (*th), sk->acked_seq+1, 
+				sk->acked_seq + sk->window))
+	{
+		return (1);
+	}
 
-  /* if it's too far ahead, send an ack to let the other end
-     know what we expect. */
-  if (after (th->seq, sk->acked_seq + sk->window))
-    {
-       tcp_send_ack (sk->send_seq, sk->acked_seq, sk, th, saddr);
-       return (0);
-    }
+	/* if it's too far ahead, send an ack to let the other end
+	   know what we expect. */
+	if (after (th->seq, sk->acked_seq + sk->window))
+	{
+		tcp_send_ack (sk->send_seq, sk->acked_seq, sk, th, saddr);
+		return (0);
+	}
 
-  if (!th->rst)
-    {
-       if (len != th->doff*4 || th->fin || th->syn)
-	 {
-	    sk->delay_acks = 0;
-	 }
+	if (!th->rst)
+	{
+		if (len != th->doff*4 || th->fin || th->syn)
+		{
+			sk->delay_acks = 0;
+		}
 
-       /* try to resync things. */
-       tcp_send_ack (net32(th->ack_seq), sk->acked_seq, sk, th, saddr);
-    }
+		/* try to resync things. */
+		tcp_send_ack (net32(th->ack_seq), sk->acked_seq, sk, th, saddr);
+	}
 
-  /* in case it's just a late ack, let it through */
-  if (th->ack && len == th->doff*4 && after (th->seq, sk->acked_seq - 4096) &&
-      !th->fin && !th->syn) return (1);
+	/* in case it's just a late ack, let it through */
+	if (th->ack && len == th->doff*4 && after (th->seq, sk->acked_seq - 4096) &&
+	    !th->fin && !th->syn)
+		return (1);
 
-  return (0);
+	return (0);
 }
 
 /* This deals with the tcp option.  It isn't very general yet. */
@@ -2052,7 +2053,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 
 	th = skb->h.th;
 	/* find the socket. */
-	sk=get_sock(&tcp_prot, net16(th->dest), saddr, th->source, daddr);
+	sk = get_sock(&tcp_prot, net16(th->dest), saddr, th->source, daddr);
 	PRINTK("<<\n");
 	PRINTK("len = %d, redo = %d, skb=%X\n", len, redo, skb);
 
@@ -2064,16 +2065,17 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 
 	if (!redo)
 	{
+		/* 如果校验和检查没通过，则释放skb，检查通过此时tcp_check()应该返回0 */
 		if (th->check && tcp_check (th, len, saddr, daddr ))
 		{
 			skb->sk = NULL;
 			free_skb (skb, 0);
-			/* we don't release the socket because it was never
-			   marked in use. */
+			/* we don't release the socket because it was never marked in use. */
 			return (0);
 		}
 
 		/*See if we know about the socket. */
+		/* 找不到对应的socket，则回复RST，然后释放skb */
 		if (sk == NULL)
 		{
 			if (!th->rst)
@@ -2083,6 +2085,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 			return (0);
 		}
 
+		/* 设置skb{}结构体数据 */
 		skb->len = len;
 		skb->sk = sk;
 		skb->acked = 0;
@@ -2097,6 +2100,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 		cli();
 
 		/* we may need to add it to the backlog here. */
+		/* 添加报文到缓冲队列中 */
 		if (sk->inuse)
 		{
 			if (sk->back_log == NULL)
@@ -2136,8 +2140,10 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 
 	switch (sk->state)
 	{
-		/* this should close the system down if it's waiting for an
-		   ack that is never going to be sent. */
+		/*
+		 * this should close the system down if it's waiting for an
+		 * ack that is never going to be sent.
+		 */
 		case TCP_LAST_ACK:
 			if (th->rst)
 			{
@@ -2157,6 +2163,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 		case TCP_FIN_WAIT2:
 		case TCP_TIME_WAIT:
 
+			/* TODO: next... */
 			if (!tcp_sequence (sk, th, len, opt, saddr))
 			{
 				free_skb (skb, FREE_READ);
@@ -2320,7 +2327,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 				return (0);
 				} */
 
-			if (!th->ack) 
+			if (!th->ack)
 			{
 				if (th->syn)
 				{
@@ -2429,63 +2436,61 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 }
 
 
-/* this routine sends a packet with an out of date sequence number. It
-   assumes the other end will try to ack it. */
-
+/* this routine sends a packet with an out of date sequence number. It assumes the other end will try to ack it. */
+/* 构建一个TCP报文并发送 */
 static  void
 tcp_write_wakeup(volatile struct sock *sk)
 {
-  struct sk_buff *buff;
-  struct tcp_header *t1;
-  struct device *dev=NULL;
-  int tmp;
-  if (sk -> state != TCP_ESTABLISHED) return;
+	struct sk_buff *buff;
+	struct tcp_header *t1;
+	struct device *dev=NULL;
+	int tmp;
+	if (sk -> state != TCP_ESTABLISHED)
+		return;
 
-  buff=sk->prot->wmalloc(sk,MAX_ACK_SIZE,1);
-  /* no big loss. */
-  if (buff == NULL) return;
+	buff=sk->prot->wmalloc(sk,MAX_ACK_SIZE,1);
+	/* no big loss. */
+	if (buff == NULL) return;
 
-  buff->mem_addr = buff;
-  buff->mem_len = MAX_ACK_SIZE;
-  buff->len=sizeof (struct tcp_header);
-  buff->free = 1;
-  buff->sk = sk;
-  PRINTK ("in tcp_write_wakeup\n");
-  t1=(struct tcp_header *)(buff + 1);
+	buff->mem_addr = buff;
+	buff->mem_len = MAX_ACK_SIZE;
+	buff->len = sizeof (struct tcp_header);
+	buff->free = 1;
+	buff->sk = sk;
+	PRINTK ("in tcp_write_wakeup\n");
+	t1 = (struct tcp_header *)(buff + 1);		//这部分代码没用!!!
 
-  /* put in the ip_header and routing stuff. */
-  tmp = sk->prot->build_header (buff, sk->saddr, sk->daddr, &dev,
-				IP_TCP, sk->opt, MAX_ACK_SIZE);
-  if (tmp < 0)
-    {
-      sk->prot->wfree(sk, buff->mem_addr, buff->mem_len);
-      return;
-    }
+	/* put in the ip_header and routing stuff. */
+	tmp = sk->prot->build_header (buff, sk->saddr, sk->daddr, &dev,
+			IP_TCP, sk->opt, MAX_ACK_SIZE);
+	if (tmp < 0)
+	{
+		sk->prot->wfree(sk, buff->mem_addr, buff->mem_len);
+		return;
+	}
 
-  buff->len += tmp;
-  t1 = (struct tcp_header *)((char *)t1 +tmp);
+	buff->len += tmp;
+	t1 = (struct tcp_header *)((char *)t1 +tmp);
 
-  memcpy (t1,(void *) &sk->dummy_th, sizeof (*t1));
+	memcpy (t1,(void *) &sk->dummy_th, sizeof (*t1));
 
-  /* use a previous sequence.  This should cause the other end
-     to send an ack. */
-  t1->seq = net32(sk->send_seq-1);
-  t1->ack = 1; 
-  t1->res1= 0;
-  t1->res2= 0;
-  t1->rst = 0;
-  t1->urg = 0;
-  t1->psh = 0;
-  t1->fin = 0;
-  t1->syn = 0;
-  t1->ack_seq = net32(sk->acked_seq);
-  t1->window = net16(sk->prot->rspace(sk));
-  t1->doff = sizeof (*t1)/4;
-  tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
-  /* send it and free it.  This will prevent the timer from 
-     automatically being restarted. */
-  sk->prot->queue_xmit(sk, dev, buff, 1);
-
+	/* use a previous sequence.  This should cause the other end to send an ack. */
+	t1->seq = net32(sk->send_seq-1);
+	t1->ack = 1; 
+	t1->res1= 0;
+	t1->res2= 0;
+	t1->rst = 0;
+	t1->urg = 0;
+	t1->psh = 0;
+	t1->fin = 0;
+	t1->syn = 0;
+	t1->ack_seq = net32(sk->acked_seq);
+	t1->window = net16(sk->prot->rspace(sk));
+	t1->doff = sizeof (*t1)/4;
+	tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
+	/* send it and free it.  This will prevent the timer from 
+	   automatically being restarted. */
+	sk->prot->queue_xmit(sk, dev, buff, 1);
 }
 
 struct proto tcp_prot =

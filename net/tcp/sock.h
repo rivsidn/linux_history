@@ -45,11 +45,19 @@ struct sock
 	int proc;
 	volatile struct sock *next;
 	volatile struct sock *pair;
-	/* 通过skb{}->link3 连接起来的单向链表，send_tail指向链表末尾，send_head指向链表头 */
+	/*
+	 * 通过skb{}->link3 连接起来的单向链表，send_tail指向链表末尾，send_head指向链表头
+	 * ip_queue_xmit() 中添加
+	 */
 	struct sk_buff *send_tail;
 	struct sk_buff *send_head;
 	struct sk_buff *back_log;
 	long retransmits;
+	/*
+	 * wback	报文单向链表，tcp_write()中添加
+	 * wfront	报文单向链表，tcp_write()中添加
+	 * rqueue	链接请求报文
+	 */
 	struct sk_buff *wback, *wfront, *rqueue;
 	struct proto *prot;
 	struct wait_queue **sleep;

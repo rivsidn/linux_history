@@ -24,15 +24,15 @@
 
 struct tcp_header
 {
-  unsigned short source;
-  unsigned short dest;
-  unsigned long seq;
-  unsigned long ack_seq;
-  unsigned short res1:4, doff:4, fin:1, syn:1, rst:1, psh:1,
-                 ack:1, urg:1,res2:2;
-  unsigned short window;
-  unsigned short check;
-  unsigned short urg_ptr;
+	unsigned short source;		//源端口号
+	unsigned short dest;		//目的端口号
+	unsigned long seq;
+	unsigned long ack_seq;
+	unsigned short res1:4, doff:4, fin:1, syn:1, rst:1, psh:1,
+		       ack:1, urg:1,res2:2;
+	unsigned short window;
+	unsigned short check;
+	unsigned short urg_ptr;
 };
 
 enum {
