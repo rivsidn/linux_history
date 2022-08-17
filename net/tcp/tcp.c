@@ -1072,7 +1072,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	newsk->acked_seq = skb->h.th->seq+1;
 	newsk->fin_seq = skb->h.th->seq;
 	newsk->copied_seq = skb->h.th->seq;
-	newsk->state = TCP_SYN_RECV;
+	newsk->state = TCP_SYN_RECV;		//此处修改了sock状态
 	newsk->timeout = 0;
 	newsk->send_seq = timer_seq*SEQ_TICK-seq_offset;
 	newsk->rcv_ack_seq = newsk->send_seq;
@@ -1702,36 +1702,35 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 static  int
 tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 {
-    extern int kill_pg (int pg, int sig, int priv);
-    extern int kill_proc (int pid, int sig, int priv);
-    
-    if (!sk->dead)
-      wake_up(sk->sleep);
-    
-    if (sk->urginline)
-      {
-	  th->urg = 0;
-	  th->psh = 1;
-	  return (0);
-      }
+	extern int kill_pg (int pg, int sig, int priv);
+	extern int kill_proc (int pid, int sig, int priv);
 
-    sk->urg++;
+	if (!sk->dead)
+		wake_up(sk->sleep);
 
-    if (!sk->urg)
-      {
-	  /* so if we get more urgent data, we don't 
-	     signal the user again. */
-	  if (sk->proc == 0) return (0);
-	  if (sk->proc > 0)
-	    {
-		kill_proc (sk->proc, SIGURG, 1);
-	    }
-	  else 
-	    {
-		kill_pg (-sk->proc, SIGURG, 1);
-	    }
-      }
-    return (0);
+	if (sk->urginline)
+	{
+		th->urg = 0;
+		th->psh = 1;
+		return (0);
+	}
+
+	sk->urg++;
+
+	if (!sk->urg)
+	{
+		/* so if we get more urgent data, we don't signal the user again. */
+		if (sk->proc == 0) return (0);
+		if (sk->proc > 0)
+		{
+			kill_proc (sk->proc, SIGURG, 1);
+		}
+		else 
+		{
+			kill_pg (-sk->proc, SIGURG, 1);
+		}
+	}
+	return (0);
 }
 
 /* this deals with incoming fins. */
@@ -2033,14 +2032,14 @@ tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 static void
 tcp_options (volatile struct sock *sk, struct tcp_header *th)
 {
-  unsigned char *ptr;
-  ptr = (unsigned char *)(th + 1);
-  if (ptr[0] != 2 || ptr[1] != 4)
-    {
-       sk->mtu = min (sk->mtu, 576-HEADER_SIZE);
-       return;
-    }
-  sk->mtu = min (sk->mtu, ptr[2]*256 + ptr[3] - HEADER_SIZE);
+	unsigned char *ptr;
+	ptr = (unsigned char *)(th + 1);
+	if (ptr[0] != 2 || ptr[1] != 4)
+	{
+		sk->mtu = min (sk->mtu, 576-HEADER_SIZE);
+		return;
+	}
+	sk->mtu = min (sk->mtu, ptr[2]*256 + ptr[3] - HEADER_SIZE);
 }
 
 /*
@@ -2305,6 +2304,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 				return (0);
 			}
 
+			/* 此处没有break，可以直接向下执行 */
 		case TCP_SYN_SENT:
 			if (th->rst)
 			{
@@ -2379,10 +2379,9 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 						release_sock(sk);
 						return (0);
 					}
-
+					/* 修改sock{} 状态 */
 					sk->state = TCP_ESTABLISHED;
-					/* now we need to finish filling out some of the tcp
-					   header. */
+					/* now we need to finish filling out some of the tcp header. */
 
 					/* we need to check for mtu info. */
 					tcp_options(sk, th);
@@ -2393,15 +2392,15 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 						wake_up (sk->sleep);
 					}
 
-					/* now process the rest like we were already in the established
-					   state. */
-					if (th->urg)
+					/* now process the rest like we were already in the established state. */
+					if (th->urg) {
 						if (tcp_urg (sk, th, saddr))
 						{
 							free_skb (skb, FREE_READ);
 							release_sock(sk);
 							return (0);
 						}
+					}
 					if (tcp_data (skb, sk, saddr, len))
 						free_skb (skb, FREE_READ);
 
