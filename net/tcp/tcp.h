@@ -86,48 +86,48 @@ void print_th (struct tcp_header *);
 #define HEADER_SIZE 64
 
 
- /* this next routines deal with comparing 32 bit unsigned ints and
-    worry about wrap around. The general strategy is to do a normal
-    compare so long as neither of the numbers is within 4k of wrapping.
-    Otherwise we must check for the wrap. */
+/* this next routines deal with comparing 32 bit unsigned ints and
+   worry about wrap around. The general strategy is to do a normal
+   compare so long as neither of the numbers is within 4k of wrapping.
+   Otherwise we must check for the wrap. */
 
- static inline int
- before (unsigned long seq1, unsigned long seq2)
- {
-   /* this inequality is strict. */
-   if (seq1 == seq2) return (0);
-   if (seq1 < seq2) 
-     {
-       if ((unsigned long)seq2-(unsigned long)seq1 < 32767UL) 
-	 {
-	   return (1);
-	 }
-       else
-	 {
-	   return (0);
-	 }
-     }
-   /* now we know seq1 > seq2.  So all we need to do is check to see
-      if seq1 has wrapped. */
-   if (seq2 < 4096UL && seq1 > (0xffffffUL - 4096UL))
-     {
-       return (1);
-     }
-   return (0);
+static inline int
+before (unsigned long seq1, unsigned long seq2)
+{
+	/* this inequality is strict. */
+	if (seq1 == seq2) return (0);
+	if (seq1 < seq2) 
+	{
+		if ((unsigned long)seq2-(unsigned long)seq1 < 32767UL) 
+		{
+			return (1);
+		}
+		else
+		{
+			return (0);
+		}
+	}
+	/* now we know seq1 > seq2.  So all we need to do is check to see
+	   if seq1 has wrapped. */
+	if (seq2 < 4096UL && seq1 > (0xffffffUL - 4096UL))
+	{
+		return (1);
+	}
+	return (0);
 
- }
+}
 
- static inline int
- after (unsigned long seq1, unsigned long seq2)
- {
-   return (before (seq2, seq1));
- }
+static inline int
+after (unsigned long seq1, unsigned long seq2)
+{
+	return (before (seq2, seq1));
+}
 
- /* is s2<=s1<=s3 ? */
- static inline int
- between (unsigned long seq1, unsigned long seq2, unsigned long seq3)
- {
-   return (after (seq1+1, seq2) && before (seq1, seq3+1));
- }
+/* is s2<=s1<=s3 ? */
+static inline int
+between (unsigned long seq1, unsigned long seq2, unsigned long seq3)
+{
+	return (after(seq1+1, seq2) && before (seq1, seq3+1));
+}
 
 #endif
