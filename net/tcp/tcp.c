@@ -319,6 +319,7 @@ tcp_check (struct tcp_header *th, int len, unsigned long saddr,
 }
 
 
+/* 设置校验和 */
 static  void
 tcp_send_check (struct tcp_header *th, unsigned long saddr, 
 		unsigned long daddr, int len, volatile struct sock *sk)
@@ -786,166 +787,167 @@ tcp_read_urg(volatile struct sock * sk,
 }
 
 /* This routine copies from a sock struct into the user buffer. */
-static  int
+static int
 tcp_read(volatile struct sock *sk, unsigned char *to,
 	 int len, int nonblock, unsigned flags)
 {
-    int copied=0; /* will be used to say how much has been copied. */
-    struct sk_buff *skb;
-    unsigned long offset;
-    unsigned long used;
+	int copied=0; /* will be used to say how much has been copied. */
+	struct sk_buff *skb;
+	unsigned long offset;
+	unsigned long used;
 
-    if (len == 0) return (0);
-    if (len < 0) 
-      {
-	 return (-EINVAL);
-      }
-    
-    /* this error should be checked. */
-    if (sk->state == TCP_LISTEN) return (-ENOTCONN);
+	if (len == 0)
+		return (0);
+	if (len < 0) 
+	{
+		return (-EINVAL);
+	}
 
-    /* urgent data needs to be handled specially. */
-    if ((flags & MSG_OOB))
-      return (tcp_read_urg (sk, to, len, flags));
+	/* this error should be checked. */
+	if (sk->state == TCP_LISTEN) return (-ENOTCONN);
 
-    /* so no-one else will use this socket. */
-    sk->inuse = 1;
-    if (sk->rqueue != NULL)
-      skb=sk->rqueue->next;
-    else
-      skb = NULL;
+	/* urgent data needs to be handled specially. */
+	if ((flags & MSG_OOB))
+		return (tcp_read_urg (sk, to, len, flags));
 
-    while ( len > 0)
-      {
-	 PRINTK("tcp_read (sk=%X, to=%X, len=%d, nonblock=%d, flags=%X)\n",
-		sk, to, len, nonblock, flags);
-	  while ( skb == NULL || before (sk->copied_seq+1, skb->h.th->seq) ||
-		 skb->used) /* skb->used just checks to see if we've
-			       gone all the way around. */
-	    {
+	/* so no-one else will use this socket. */
+	sk->inuse = 1;
+	if (sk->rqueue != NULL)
+		skb=sk->rqueue->next;
+	else
+		skb = NULL;
 
-	       PRINTK("skb = %X:\n",skb);
-	       print_skb(skb);
-	       print_sk (sk);
-
-	       cleanup_rbuf(sk);
-
-		if (nonblock || ((flags & MSG_PEEK) && copied))
-		  {
-		     release_sock (sk);
-		     if (copied) return (copied);
-		     return (-EAGAIN);
-		  }
-
-		release_sock (sk); /* now we may have some data waiting. */
-
-
-	       PRINTK ("tcp_read about to sleep. state = %d\n",sk->state);
-	       cli();
-
-	       if (sk->state == TCP_CLOSE || sk->state == TCP_TIME_WAIT)
-		   {
-		     sti();
-		     if (copied) return (copied);
-		     if (sk->err) return (-sk->err);
-		     if (!sk->done)
-		       {
-			  sk->done = 1;
-			  return (0);
-		       }
-		     return (-ENOTCONN);
-		  }
-			
-		if ( sk->rqueue == NULL ||
-		    before (sk->copied_seq+1, sk->rqueue->next->h.th->seq))
-		  {
-		     interruptible_sleep_on (sk->sleep);
-		     if (current->signal & ~current->blocked)
-		       {
-			  sti ();
-			  if (copied) return (copied);
-			  return (-ERESTARTSYS);
-		       }
-		  }
-		sti();
-		PRINTK ("tcp_read woke up. \n");
-
-		sk->inuse = 1;
-
-		if (sk->rqueue != NULL)
-		  skb=sk->rqueue->next;
-		else
-		  skb = NULL;
-
-	    }
-
-	  /* Copy anything from the current block that needs to go
-	     into the user buffer. */
-
-	 offset = sk->copied_seq+1 - skb->h.th->seq;
-
-	 if (skb->h.th->syn) offset --;
-	 if (offset < skb->len )
-	   {
-	      /* if there is urgent data we must either return or skip
-		 over it. */
-	      if (skb->h.th->urg)
+	while ( len > 0)
+	{
+		PRINTK("tcp_read (sk=%X, to=%X, len=%d, nonblock=%d, flags=%X)\n",
+				sk, to, len, nonblock, flags);
+		while ( skb == NULL || before (sk->copied_seq+1, skb->h.th->seq) ||
+				skb->used) /* skb->used just checks to see if we've
+					      gone all the way around. */
 		{
-		   if (skb->urg_used)
-		     {
-			if (flags & MSG_PEEK) break;
-			sk->copied_seq += skb->h.th->urg_ptr;
-			offset += skb->h.th->urg_ptr;
-			if (offset > skb->len)
-			  {
-			     skb->used = 1;
-			     skb=skb->next;
-			     continue;
-			  }
-		     }
-		   else
-		     {
-			break;
-		     }
-		}
-	      used = min(skb->len - offset, len);
 
-	      verify_area (to, used);
-	      memcpy_tofs(to, ((unsigned char *)skb->h.th) +
-			  skb->h.th->doff*4 +
-			  offset,
-			  used);
-	      copied += used;
-	      len -= used;
-	      to += used;
-	      if (!(flags & MSG_PEEK))
-		sk->copied_seq += used;
-	      
-	      /* mark this data used if we are really reading it, and if
-		 it doesn't contain any urgent data. And we have used all
-		 the data. */
-	      if (!(flags & MSG_PEEK) &&
-		  (!skb->h.th->urg || skb->urg_used) &&
-		  (used + offset >= skb->len) )
-		skb->used = 1;
-	      
-	      /* see if this is the end of a message or if the remaining data
-		 is urgent. */
-	      if ( skb->h.th->psh || skb->h.th->urg)
-		{
-		   break;
+			PRINTK("skb = %X:\n",skb);
+			print_skb(skb);
+			print_sk (sk);
+
+			cleanup_rbuf(sk);
+
+			if (nonblock || ((flags & MSG_PEEK) && copied))
+			{
+				release_sock (sk);
+				if (copied) return (copied);
+				return (-EAGAIN);
+			}
+
+			release_sock (sk); /* now we may have some data waiting. */
+
+
+			PRINTK ("tcp_read about to sleep. state = %d\n",sk->state);
+			cli();
+
+			if (sk->state == TCP_CLOSE || sk->state == TCP_TIME_WAIT)
+			{
+				sti();
+				if (copied) return (copied);
+				if (sk->err) return (-sk->err);
+				if (!sk->done)
+				{
+					sk->done = 1;
+					return (0);
+				}
+				return (-ENOTCONN);
+			}
+
+			if ( sk->rqueue == NULL ||
+					before (sk->copied_seq+1, sk->rqueue->next->h.th->seq))
+			{
+				interruptible_sleep_on (sk->sleep);
+				if (current->signal & ~current->blocked)
+				{
+					sti ();
+					if (copied) return (copied);
+					return (-ERESTARTSYS);
+				}
+			}
+			sti();
+			PRINTK ("tcp_read woke up. \n");
+
+			sk->inuse = 1;
+
+			if (sk->rqueue != NULL)
+				skb=sk->rqueue->next;
+			else
+				skb = NULL;
+
 		}
-	   }
-	 else /* already used this data, must be a retransmit. */
-	   {
-	      skb->used = 1;
-	   }
-	 skb=skb->next;
-      }
-    cleanup_rbuf (sk);
-    release_sock (sk);
-    if (copied == 0 && nonblock) return (-EAGAIN);
-    return (copied);
+
+		/* Copy anything from the current block that needs to go
+		   into the user buffer. */
+
+		offset = sk->copied_seq+1 - skb->h.th->seq;
+
+		if (skb->h.th->syn) offset --;
+		if (offset < skb->len )
+		{
+			/* if there is urgent data we must either return or skip
+			   over it. */
+			if (skb->h.th->urg)
+			{
+				if (skb->urg_used)
+				{
+					if (flags & MSG_PEEK) break;
+					sk->copied_seq += skb->h.th->urg_ptr;
+					offset += skb->h.th->urg_ptr;
+					if (offset > skb->len)
+					{
+						skb->used = 1;
+						skb=skb->next;
+						continue;
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+			used = min(skb->len - offset, len);
+
+			verify_area (to, used);
+			memcpy_tofs(to, ((unsigned char *)skb->h.th) +
+					skb->h.th->doff*4 +
+					offset,
+					used);
+			copied += used;
+			len -= used;
+			to += used;
+			if (!(flags & MSG_PEEK))
+				sk->copied_seq += used;
+
+			/* mark this data used if we are really reading it, and if
+			   it doesn't contain any urgent data. And we have used all
+			   the data. */
+			if (!(flags & MSG_PEEK) &&
+					(!skb->h.th->urg || skb->urg_used) &&
+					(used + offset >= skb->len) )
+				skb->used = 1;
+
+			/* see if this is the end of a message or if the remaining data
+			   is urgent. */
+			if ( skb->h.th->psh || skb->h.th->urg)
+			{
+				break;
+			}
+		}
+		else /* already used this data, must be a retransmit. */
+		{
+			skb->used = 1;
+		}
+		skb=skb->next;
+	}
+	cleanup_rbuf (sk);
+	release_sock (sk);
+	if (copied == 0 && nonblock) return (-EAGAIN);
+	return (copied);
 }
 
 /* this routine will send a reset to the other tcp. */
@@ -953,48 +955,47 @@ static  void
 tcp_reset(unsigned long saddr, unsigned long daddr, struct tcp_header *th,
 	   struct proto *prot, struct options *opt, struct device *dev)
 {
-  /* we need to grab some memory, and put together a reset, and then
-     put it into the queue to be sent. */
-  struct sk_buff *buff;
-  struct tcp_header *t1;
-  int tmp;
-  buff=prot->wmalloc(NULL, MAX_RESET_SIZE,1);
-  if (buff == NULL) return;
+	/* we need to grab some memory, and put together a reset, and then put it into the queue to be sent. */
+	/* 获取内存，构造一个RST报文，将报文放到队列中发送出去 */
+	struct sk_buff *buff;
+	struct tcp_header *t1;
+	int tmp;
+	buff=prot->wmalloc(NULL, MAX_RESET_SIZE,1);
+	if (buff == NULL)
+		return;
 
-  PRINTK("tcp_reset buff = %X\n", buff);
-  buff->mem_addr = buff;
-  buff->mem_len = MAX_RESET_SIZE;
-  buff->len = sizeof (*t1);
-  buff->sk = NULL;
-  buff->dev = dev;
+	PRINTK("tcp_reset buff = %X\n", buff);
+	buff->mem_addr = buff;
+	buff->mem_len = MAX_RESET_SIZE;
+	buff->len = sizeof (*t1);
+	buff->sk = NULL;
+	buff->dev = dev;
 
-  t1=(struct tcp_header *)(buff + 1);
-  /* put in the ip_header and routing stuff. */
-  tmp = prot->build_header (buff, saddr, daddr, &dev, IP_TCP, opt,
-			    sizeof(struct tcp_header));
-  if (tmp < 0)
-    {
-      prot->wfree (NULL,buff->mem_addr, buff->mem_len);
-      return;
-    }
-  t1 = (struct tcp_header *)((char *)t1 +tmp);
-  buff->len += tmp;
-  memcpy (t1, th, sizeof (*t1));
-  /* swap the send and the receive. */
-  t1->dest = th->source;
-  t1->source = th->dest;
-  t1->seq = th->ack_seq; /* add one so it will be in
-			    the right range.*/
-  t1->rst = 1;
-  t1->ack = 0;
-  t1->syn = 0;
-  t1->urg = 0;
-  t1->fin = 0;
-  t1->psh = 0;
-  t1->doff = sizeof (*t1)/4;
-  tcp_send_check (t1, saddr, daddr, sizeof (*t1), NULL);
-  prot->queue_xmit(NULL, dev, buff, 1);
-  
+	t1=(struct tcp_header *)(buff + 1);
+	/* put in the ip_header and routing stuff. */
+	tmp = prot->build_header (buff, saddr, daddr, &dev, IP_TCP, opt, sizeof(struct tcp_header));
+	if (tmp < 0)
+	{
+		prot->wfree (NULL,buff->mem_addr, buff->mem_len);
+		return;
+	}
+	t1 = (struct tcp_header *)((char *)t1 +tmp);
+	buff->len += tmp;
+	/* 拷贝发送来的TCP 头，交换源、目IP地址 */
+	memcpy (t1, th, sizeof (*t1));
+	/* swap the send and the receive. */
+	t1->dest = th->source;
+	t1->source = th->dest;
+	t1->seq = th->ack_seq; /* add one so it will be in the right range.*/
+	t1->rst = 1;
+	t1->ack = 0;
+	t1->syn = 0;
+	t1->urg = 0;
+	t1->fin = 0;
+	t1->psh = 0;
+	t1->doff = sizeof (*t1)/4;
+	tcp_send_check (t1, saddr, daddr, sizeof (*t1), NULL);
+	prot->queue_xmit(NULL, dev, buff, 1);
 }
 
 
@@ -1369,6 +1370,7 @@ tcp_write_xmit (volatile struct sock *sk)
 
 
 /* This routine deals with incoming acks, but not outgoing ones. */
+/* 处理收到的ack 报文 */
 
 static  int
 tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
@@ -2258,12 +2260,14 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 			return (0);
 
 		case TCP_LISTEN:
+			/* 监听状态，RST没有意义 */
 			if (th->rst)
 			{
 				free_skb (skb, FREE_READ);
 				release_sock(sk);
 				return (0);
 			}
+			/* 处于listen状态，收到了一个ack报文，表示之前的链接已经被重置了，发送一个RST，通知对端 */
 			if (th->ack)
 			{
 				tcp_reset (daddr, saddr, th, sk->prot, opt,dev );
@@ -2393,6 +2397,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 					}
 
 					/* now process the rest like we were already in the established state. */
+					/* 处理其他数据，就像我们已经处于建立状态一样 */
 					if (th->urg) {
 						if (tcp_urg (sk, th, saddr))
 						{

@@ -26,8 +26,9 @@ struct tcp_header
 {
 	unsigned short source;		//源端口号
 	unsigned short dest;		//目的端口号
-	unsigned long seq;
-	unsigned long ack_seq;
+	unsigned long seq;		//序列号
+	unsigned long ack_seq;		//回复序列号
+	/* TODO: 这里为什么这么构造？ */
 	unsigned short res1:4, doff:4, fin:1, syn:1, rst:1, psh:1,
 		       ack:1, urg:1,res2:2;
 	unsigned short window;

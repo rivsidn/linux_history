@@ -1080,7 +1080,7 @@ ip_proto_accept (struct socket *sock, struct socket *newsock, int flags)
 	cli(); /* avoid the race. */
 	while (sk2->state == TCP_SYN_RECV)
 	{
-		/* TODO: 这里何时会被唤醒 */
+		/* tcp_rcv() 中收到ACK 报后会被唤醒 */
 		interruptible_sleep_on (sk2->sleep);
 		if (current->signal & ~current->blocked)
 		{

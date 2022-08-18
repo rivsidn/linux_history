@@ -378,70 +378,70 @@ ip_build_header (struct sk_buff *skb, unsigned long saddr,
 		 unsigned long daddr, struct device **dev, int type,
 		 struct options *opt, int len)
 {
-  static struct options optmem;
-  struct ip_header *iph;
-  unsigned char *buff;
-  static int count = 0;
-  unsigned long raddr; /* for the router. */
-  int tmp;
-  if (saddr == 0) saddr = MY_IP_ADDR;
-  PRINTK ("ip_build_header (skb=%X, saddr=%X, daddr=%X, *dev=%X,\n"
-	  "                 type=%d, opt=%X, len = %d)\n",
-	  skb, saddr, daddr, *dev, type, opt, len);
-  buff = (unsigned char *)(skb + 1);
-  /* see if we need to look up the device. */
-  if (*dev == NULL)
-    {
-      *dev = ip_route(&optmem,daddr, &raddr);
-      if (*dev == NULL)
+	static struct options optmem;
+	struct ip_header *iph;
+	unsigned char *buff;
+	static int count = 0;
+	unsigned long raddr; /* for the router. */
+	int tmp;
+	if (saddr == 0) saddr = MY_IP_ADDR;
+	PRINTK ("ip_build_header (skb=%X, saddr=%X, daddr=%X, *dev=%X,\n"
+			"                 type=%d, opt=%X, len = %d)\n",
+			skb, saddr, daddr, *dev, type, opt, len);
+	buff = (unsigned char *)(skb + 1);
+	/* see if we need to look up the device. */
+	if (*dev == NULL)
 	{
-	  return (-ENETUNREACH);
+		*dev = ip_route(&optmem,daddr, &raddr);
+		if (*dev == NULL)
+		{
+			return (-ENETUNREACH);
+		}
+		opt = &optmem;
 	}
-      opt = &optmem;
-    }
-  else
-    {
-      /* we still need the address of the first hop. */
-      ip_route (&optmem, daddr, &raddr);
-    }
-  if (raddr == 0) raddr = daddr;
-  /* now build the header. */
-  /* we need to worry about routing in here.  daddr should
-     really be the address of the next hop. */
-  /* but raddr is . */
-  if ((*dev)->hard_header)
-    {
-       tmp = (*dev)->hard_header(buff, *dev, ETHERTYPE_IP, raddr, saddr, len);
-    }
-  else
-    {
-       tmp = 0;
-    }
-  if (tmp < 0)
-    {
-       tmp = -tmp;
-       skb->arp = 0;
-    }
-  else
-    {
-       skb->arp = 1;
-    }
-  buff += tmp;
-  len -= tmp;
-  skb->dev = *dev;
-  /* now build the ip header. */
-  iph = (struct ip_header *)buff;
-  iph->version = 4;
-  iph->tos = 0;
-  iph->frag_off = 0;
-  iph->ttl = 32;
-  iph->daddr = daddr;
-  iph->saddr = saddr;
-  iph->protocol=type;
-  iph->ihl = 5;
-  iph->id = net16(count++);
-  /* build_options (iph, opt);*/
-  return (20+tmp);
+	else
+	{
+		/* we still need the address of the first hop. */
+		ip_route (&optmem, daddr, &raddr);
+	}
+	if (raddr == 0) raddr = daddr;
+	/* now build the header. */
+	/* we need to worry about routing in here.  daddr should
+	   really be the address of the next hop. */
+	/* but raddr is . */
+	if ((*dev)->hard_header)
+	{
+		tmp = (*dev)->hard_header(buff, *dev, ETHERTYPE_IP, raddr, saddr, len);
+	}
+	else
+	{
+		tmp = 0;
+	}
+	if (tmp < 0)
+	{
+		tmp = -tmp;
+		skb->arp = 0;
+	}
+	else
+	{
+		skb->arp = 1;
+	}
+	buff += tmp;
+	len -= tmp;
+	skb->dev = *dev;
+	/* now build the ip header. */
+	iph = (struct ip_header *)buff;
+	iph->version = 4;
+	iph->tos = 0;
+	iph->frag_off = 0;
+	iph->ttl = 32;
+	iph->daddr = daddr;
+	iph->saddr = saddr;
+	iph->protocol=type;
+	iph->ihl = 5;
+	iph->id = net16(count++);
+	/* build_options (iph, opt);*/
+	return (20+tmp);
 }
 
 static  int
