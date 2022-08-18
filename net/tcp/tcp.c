@@ -1040,13 +1040,12 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	   off of the queue, this will take care of it. */
 
 	newsk = malloc(sizeof (struct sock));
-	if (newsk == NULL) 
+	if (newsk == NULL)
 	{
 		/* just ignore the syn.  It will get retransmitted. */
 		free_skb (skb, FREE_READ);
 		return;
 	}
-
 
 	PRINTK ("newsk = %X\n", newsk);
 	memcpy ((void *)newsk, (void *)sk, sizeof (*newsk));
@@ -1075,7 +1074,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	newsk->copied_seq = skb->h.th->seq;
 	newsk->state = TCP_SYN_RECV;		//此处修改了sock状态
 	newsk->timeout = 0;
-	newsk->send_seq = timer_seq*SEQ_TICK-seq_offset;
+	newsk->send_seq = timer_seq * SEQ_TICK - seq_offset;
 	newsk->rcv_ack_seq = newsk->send_seq;
 	newsk->urg =0;
 	newsk->retransmits = 0;
@@ -1103,14 +1102,15 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 
 	if (skb->h.th->doff == 5)
 	{
-		newsk->mtu=dev->mtu-HEADER_SIZE;
+		newsk->mtu=dev->mtu - HEADER_SIZE;
 	}
 	else
 	{
 		ptr = (unsigned char *)(skb+1);
 		if (ptr[0] != 2 || ptr[1] != 4)
 		{
-			newsk->mtu=576-HEADER_SIZE;
+			/* 默认大小是576 */
+			newsk->mtu=576 - HEADER_SIZE;
 		}
 		else
 		{
@@ -1119,6 +1119,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 		}
 	}
 
+	/* 回复一个ACK包 */
 	print_sk (newsk);
 	buff=newsk->prot->wmalloc(newsk,MAX_SYN_SIZE,1);
 	if (buff == NULL)
@@ -1173,6 +1174,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	t1->ack_seq = net32(skb->h.th->seq+1);
 	t1->doff = sizeof (*t1)/4+1;
 
+	/* 可能此时只支持这一种选项 */
 	ptr = (unsigned char *)(t1+1);
 	ptr[0]=2;
 	ptr[1]=4;
@@ -1190,6 +1192,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	sk->rmem_alloc -= skb->mem_len;
 	newsk->rmem_alloc += skb->mem_len;
 
+	/* 将收到的syn包放到rqueue中 */
 	if (sk->rqueue == NULL)
 	{
 		skb->next = skb;
@@ -2301,8 +2304,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 			return (0);
 
 		default:
-			if (!tcp_sequence (sk, th, len, opt, saddr)) 
-			{
+			if (!tcp_sequence (sk, th, len, opt, saddr)) {
 				free_skb (skb, FREE_READ);
 				release_sock(sk);
 				return (0);

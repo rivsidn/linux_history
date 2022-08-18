@@ -1059,6 +1059,7 @@ ip_proto_accept (struct socket *sock, struct socket *newsock, int flags)
 	newsock->data = NULL;
 	if (sk1->prot->accept == NULL)
 		return (-EOPNOTSUPP);
+
 	/* restore the state if we have been interrupted, and then returned. */
 	if (sk1->pair != NULL )
 	{
@@ -1080,8 +1081,9 @@ ip_proto_accept (struct socket *sock, struct socket *newsock, int flags)
 	cli(); /* avoid the race. */
 	while (sk2->state == TCP_SYN_RECV)
 	{
-		/* tcp_rcv() 中收到ACK 报后会被唤醒 */
+		/* tcp_rcv() 中收到ACK 包后会被唤醒 */
 		interruptible_sleep_on (sk2->sleep);
+		/* 收到信号会被唤醒，如果是因为信号被唤醒的，下次不会走accept()，如上所示 */
 		if (current->signal & ~current->blocked)
 		{
 			sti();

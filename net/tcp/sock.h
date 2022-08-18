@@ -32,6 +32,13 @@ struct sock
 	struct options *opt;
 	unsigned long wmem_alloc;
 	unsigned long rmem_alloc;
+	/*
+	 * send_seq	本机发送的序列号
+	 * acked_seq	本机发送的回复序列号
+	 * copied_seq	TODO
+	 * rcv_ack_seq	
+	 * window_seq	
+	 */
 	unsigned long send_seq;
 	unsigned long acked_seq;
 	unsigned long copied_seq;
@@ -66,6 +73,7 @@ struct sock
 	unsigned short max_unacked;
 	unsigned short window;
 	unsigned short bytes_rcv;
+	/* 此处mtu 是TCP 数据长度 */
 	unsigned short mtu;
 	unsigned short num;
 	unsigned short cong_window;

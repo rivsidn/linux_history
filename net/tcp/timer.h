@@ -23,8 +23,12 @@
 #define _TCP_TIMER_H
 
 /*
+ * 该定时器结构体仅仅用于网络定时器.
+ *
  * len		定时器时长
+ * sk		对应的sock结构体
  * wheh		定时器超时时间，jiffies + len
+ * next		定时器链表
  */
 struct timer
 {

@@ -40,38 +40,48 @@ unsigned long seq_offset;
 void
 delete_timer (struct timer *t)
 {
-   struct timer *tm;
-   PRINTK ("delete_timer (t=%X)\n",t);
-   if (timer_base == NULL) return;
-   cli();
-   if (t == timer_base) 
-     {
-	timer_base = t->next;
-	if (timer_base != NULL)
-	  {
-	     timer_table[NET_TIMER].expires = timer_base->when;
-	     timer_active |= 1 << NET_TIMER;
-	  }
-	else
-	  {
-	     timer_active &= ~(1 << NET_TIMER);
-	  }
+	struct timer *tm;
+	PRINTK ("delete_timer (t=%X)\n",t);
+
+	/* 定时器队列为空，直接返回 */
+	if (timer_base == NULL)
+		return;
+
+	cli();
+	if (t == timer_base) 
+	{
+		timer_base = t->next;
+		if (timer_base != NULL)
+		{
+			timer_table[NET_TIMER].expires = timer_base->when;
+			/* 设置定时器active标识位 */
+			timer_active |= 1 << NET_TIMER;
+		}
+		else
+		{
+			/* 清空定时器active标识位 */
+			timer_active &= ~(1 << NET_TIMER);
+		}
+		sti();
+		return;
+	}
+	for (tm = timer_base;tm->next != NULL ;tm=tm->next)
+	{
+		if (tm->next == t)
+		{
+			tm->next = t->next;
+			sti();
+			return;
+		}
+	}
 	sti();
-	return;
-     }
-   for (tm = timer_base;tm->next != NULL ;tm=tm->next)
-     {
-	if (tm->next == t)
-	  {
-	     tm->next = t->next;
-	     sti();
-	     return;
-	  }
-     }
-   sti();
 }
 
 
+/*
+ * 将定时器插入到timer_base 链表中；
+ * 如果有必要，重新设置timer_table[NET_TIMER].expires 超时时间
+ */
 void
 reset_timer (struct timer *t)
 {
@@ -87,7 +97,7 @@ reset_timer (struct timer *t)
 	}
 	/* first see if it goes at the beginning. */
 	cli();
-	if (timer_base == NULL) 
+	if (timer_base == NULL)
 	{
 		t->next = NULL;
 		timer_base = t;
@@ -117,6 +127,7 @@ reset_timer (struct timer *t)
 	}
 }
 
+/* NET_TIMER 超时执行的定时器函数 */
 void
 net_timer (void)
 {
@@ -148,6 +159,7 @@ net_timer (void)
 		}
 		else
 		{
+			/* 删除定时器 */
 			sk->timeout = 0;
 			delete_timer(timer_base);
 		}
@@ -162,7 +174,6 @@ net_timer (void)
 		/* now we need to figure out why the socket was on the timer. */
 		switch (why)
 		{
-
 			case TIME_DONE:
 				if (!sk->dead || sk->state != TCP_CLOSE)
 				{
@@ -291,6 +302,7 @@ net_timer (void)
 	} /* while (timer_base != ...  */
 
 	/* Now we need to reset the timer. */
+	/* 重新设置定时器 */
 	if (timer_base != NULL)
 	{
 		timer_table[NET_TIMER].expires = timer_base->when;

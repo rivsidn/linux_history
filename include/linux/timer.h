@@ -33,6 +33,7 @@
 #define SCSI_TIMER 	18
 #define NET_TIMER	19
 
+/* 超时时间，函数 */
 struct timer_struct {
 	unsigned long expires;
 	void (*fn)(void);
