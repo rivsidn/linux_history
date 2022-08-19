@@ -139,35 +139,34 @@ void
 tcp_err (int err, unsigned char *header, unsigned long daddr,
 	 unsigned long saddr, struct ip_protocol *protocol)
 {
-   struct tcp_header *th;
-   volatile struct sock *sk;
-   
-   th = (struct tcp_header *)header;
-   sk = get_sock (&tcp_prot, net16(th->dest), saddr, th->source, daddr);
+	struct tcp_header *th;
+	volatile struct sock *sk;
 
-   if (sk == NULL) return;
+	th = (struct tcp_header *)header;
+	sk = get_sock (&tcp_prot, net16(th->dest), saddr, th->source, daddr);
 
-   if (err & 0xff00 == (ICMP_SOURCE_QUENCH << 8))
-     {
-	/* for now we will just trigger a linear backoff. The slow start
-	   code should cause a real backoff here. */
+	if (sk == NULL)
+		return;
 
-	if (sk->cong_window > 1)
-	  sk->cong_window --;
+	/* 收到该数据包时表示要降低发送速率 */
+	if (err & 0xff00 == (ICMP_SOURCE_QUENCH << 8))
+	{
+		/* for now we will just trigger a linear backoff. The slow start code should cause a real backoff here. */
+		if (sk->cong_window > 1)
+			sk->cong_window --;
+
+		return;
+	}
+
+	sk->err = icmp_err_convert[err & 0xff].errno;
+	if (icmp_err_convert[err & 0xff].fatal)
+	{
+		if (sk->state != TCP_ESTABLISHED)
+			sk->state = TCP_CLOSE;
+		sk->prot->close(sk, 0);
+	}
 
 	return;
-     }
-
-   sk->err = icmp_err_convert[err & 0xff].errno;
-   if (icmp_err_convert[err & 0xff].fatal)
-     {
-	if (sk->state != TCP_ESTABLISHED)
-	  sk->state = TCP_CLOSE;
-	sk->prot->close(sk, 0);
-     }
-
-   return;
-   
 }
 
 static int
@@ -580,8 +579,8 @@ tcp_write(volatile struct sock *sk, unsigned char *from,
 		skb->free = 0;
 		sk->send_seq += copy;
 		skb->h.seq = sk->send_seq;
-		if (after (sk->send_seq , sk->window_seq) ||
-				sk->packets_out >= sk->cong_window)
+		/* 只有两个同时满足条件才发送，不满足条件的时候，添加到发送队列中 */
+		if (after (sk->send_seq , sk->window_seq) || sk->packets_out >= sk->cong_window)
 		{
 			PRINTK ("sk->cong_window = %d, sk->packets_out = %d\n",
 					sk->cong_window, sk->packets_out);
@@ -1403,7 +1402,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	/* we don't want too many packets out there. */
 	if (sk->cong_window < 2048 && ack != sk->rcv_ack_seq)
 	{
-		/* 增加拥塞窗口 */
+		/* 增加拥塞窗口，如果设置了exp_growth，则指数级增加 */
 		if (sk->exp_growth)
 			sk->cong_window *= 2;
 		else
@@ -1846,8 +1845,7 @@ tcp_fin (volatile struct sock *sk, struct tcp_header *th,
 	t1->doff = sizeof (*t1)/4;
 	tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
 
-	/* can't just queue this up.  It should go at the end of
-	   the write queue. */
+	/* can't just queue this up.  It should go at the end of the write queue. */
 	if (sk->wback != NULL)
 	{
 		buff->next = NULL;
@@ -2372,10 +2370,8 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 						return (0);
 					}
 
-					/* if the syn bit is also set, switch to tcp_syn_recv,
-					   and then to established. */
-
-					if (!th->syn) 
+					/* if the syn bit is also set, switch to tcp_syn_recv, and then to established. */
+					if (!th->syn)
 					{
 						free_skb (skb, FREE_READ);
 						release_sock (sk);
@@ -2385,8 +2381,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 					/* ack the syn and fall through. */
 					sk->acked_seq = th->seq+1;
 					sk->fin_seq = th->seq;
-					tcp_send_ack (sk->send_seq, th->seq+1, sk, 
-							th, sk->daddr);
+					tcp_send_ack (sk->send_seq, th->seq+1, sk, th, sk->daddr);
 
 				case TCP_SYN_RECV:
 					if (!tcp_ack(sk, th, saddr))

@@ -782,9 +782,10 @@ ip_proto_create (struct socket *sock, int protocol)
 	sk->proc = 0;
 	sk->rtt = TCP_WRITE_TIME;
 	sk->packets_out = 0;
+	/* 最开始的时候一次性之发送一个报文 */
 	sk->cong_window = 1; /* start with only sending one packet at a time. */
-	sk->exp_growth = 1;  /* if set cong_window grow exponentially every time
-				we get an ack. */
+	/* 如果了设置exp_growth，每次收到一个ack，指数增长cong_window */
+	sk->exp_growth = 1;  /* if set cong_window grow exponentially every time we get an ack. */
 	sk->urginline = 0;
 	sk->intr = 0;
 	sk->linger = 0;

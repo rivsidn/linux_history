@@ -38,7 +38,7 @@ struct sock
 	 * copied_seq	TODO
 	 * rcv_ack_seq	收到对端回复的ack序列号
 	 * window_seq	对端回复的ack+对端的window号，既是本端可以发送的序号大小
-	 * fin_seq	
+	 * fin_seq	结束时需要确认的序列号
 	 */
 	unsigned long send_seq;
 	unsigned long acked_seq;
