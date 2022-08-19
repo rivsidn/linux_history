@@ -63,6 +63,7 @@ struct sock
 	/*
 	 * 该值有两种意思:
 	 * ip_retransmit() 中表示发送报文的个数，其他地方表示报文是否需要重传.
+	 * 有两个地方用到了这个数值，重传、KEEPOPEN.
 	 */
 	long retransmits;
 	/*

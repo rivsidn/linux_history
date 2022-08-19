@@ -260,8 +260,7 @@ net_timer (void)
 				sk->timeout = TIME_WRITE;
 				reset_timer ((struct timer *)&sk->time_wait);
 
-			case TIME_KEEPOPEN: /* send something to keep the
-					       connection open. */
+			case TIME_KEEPOPEN: /* send something to keep the connection open. */
 				sk->retransmits ++;
 				if (sk->retransmits > TCP_RETR1)
 				{

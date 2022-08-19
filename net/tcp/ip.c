@@ -744,7 +744,6 @@ ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
        ipprot->handler (skb2, dev, &opt, iph->daddr,
 			net16(iph->tot_len) - iph->ihl*4,
 			iph->saddr, 0, ipprot);
-
     }
   if (!flag)
     {
@@ -826,7 +825,7 @@ ip_queue_xmit (volatile struct sock *sk, struct device *dev,
 	}
 	else
 	{
-		if (free) 
+		if (free)
 			free_skb (skb, FREE_WRITE);
 	}
 }

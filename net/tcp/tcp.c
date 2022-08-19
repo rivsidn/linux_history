@@ -1390,7 +1390,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 		{
 			return (0);
 		}
-		/* 如果keepopen 使能，重新设置定时器 */
+		/* 如果keepopen 使能，重新设置定时器，此时类型为TIME_KEEPOPEN */
 		if (sk->keepopen)
 			reset_timer ((struct timer *)&sk->time_wait);
 		sk->retransmits = 0;
@@ -2001,7 +2001,11 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 
 
 /* this functions checks to see if the tcp header is actually acceptible. */
-/* TODO: 这里没弄清楚 */
+/*
+ * 返回值:
+ * 0	异常
+ * 1	正常
+ */
 static  int
 tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 	      struct options *opt, unsigned long saddr)
@@ -2011,6 +2015,7 @@ tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 	   slightly more packets than we should, but it should not cause
 	   problems unless someone is trying to forge packets. */
 
+	/* 当前报文的seq 不包含当前报文长度 */
 	if (between(th->seq, sk->acked_seq, sk->acked_seq + sk->window) ||
 	    between(th->seq + len - sizeof (*th), sk->acked_seq+1, sk->acked_seq + sk->window))
 	{
@@ -2031,13 +2036,13 @@ tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 			sk->delay_acks = 0;
 		}
 
+		/* 此处可以给KEEPOPEN 类型的ACK 回复一个ACK */
 		/* try to resync things. */
 		tcp_send_ack (net32(th->ack_seq), sk->acked_seq, sk, th, saddr);
 	}
 
 	/* in case it's just a late ack, let it through */
-	if (th->ack && len == th->doff*4 && after (th->seq, sk->acked_seq - 4096) &&
-	    !th->fin && !th->syn)
+	if (th->ack && len == th->doff*4 && after (th->seq, sk->acked_seq - 4096) && !th->fin && !th->syn)
 		return (1);
 
 	return (0);
@@ -2061,6 +2066,8 @@ tcp_options (volatile struct sock *sk, struct tcp_header *th)
  * tcp 协议入口函数，可能被两个地方调用：
  * 1. ip_rcv() 调用，此时redo=0
  * 2. relesae_sock() 调用，此时redo=1
+ *
+ * len		TCP段长度，包含TCP头
  */
 int
 tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
@@ -2182,7 +2189,6 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 		case TCP_FIN_WAIT2:
 		case TCP_TIME_WAIT:
 
-			/* 如果返回值不为0 则释放skb */
 			if (!tcp_sequence (sk, th, len, opt, saddr))
 			{
 				free_skb (skb, FREE_READ);
@@ -2453,9 +2459,14 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 	}
 }
 
+/*
+ * KEEPALIVE 机制
+ * 定期使用tcp_write_wakeup() 构建一个过时的ack 包发送给对端设备；
+ * 对端设备收到之后，回回复一个ack 报文。
+ */
 
 /* this routine sends a packet with an out of date sequence number. It assumes the other end will try to ack it. */
-/* 构建一个TCP报文并发送 */
+/* 构建一个序列号过时的TCP ack报文并发送，用于KEEPALIVE 机制 */
 static  void
 tcp_write_wakeup(volatile struct sock *sk)
 {
@@ -2463,6 +2474,8 @@ tcp_write_wakeup(volatile struct sock *sk)
 	struct tcp_header *t1;
 	struct device *dev=NULL;
 	int tmp;
+
+	/* 仅对于建立的链接生效 */
 	if (sk -> state != TCP_ESTABLISHED)
 		return;
 
@@ -2506,8 +2519,7 @@ tcp_write_wakeup(volatile struct sock *sk)
 	t1->window = net16(sk->prot->rspace(sk));
 	t1->doff = sizeof (*t1)/4;
 	tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
-	/* send it and free it.  This will prevent the timer from 
-	   automatically being restarted. */
+	/* send it and free it.  This will prevent the timer from automatically being restarted. */
 	sk->prot->queue_xmit(sk, dev, buff, 1);
 }
 
