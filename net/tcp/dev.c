@@ -169,7 +169,6 @@ dev_queue_xmit (struct sk_buff *skb, struct device *dev, int pri)
 		skb->prev->next = skb;
 	}
 	sti();
-
 }
 
 

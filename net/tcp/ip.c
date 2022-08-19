@@ -793,6 +793,8 @@ ip_queue_xmit (volatile struct sock *sk, struct device *dev,
 		/*
 		 * 将skb添加到队列中，是一个通过skb{}->link3链接起来的单向链表，
 		 * send_tail指向链表的尾部，send_head 指向链表的头部.
+		 *
+		 * 不立即释放的报文，在tcp_ack()中释放.
 		 */
 		if (sk->send_tail == NULL)
 		{
@@ -805,7 +807,7 @@ ip_queue_xmit (volatile struct sock *sk, struct device *dev,
 			sk->send_tail = skb;
 		}
 		sti();
-		/* 定时器时长 */
+		/* 设置定时器，如果超时则重传 */
 		sk->time_wait.len = sk->rtt*2;
 		sk->timeout=TIME_WRITE;
 		reset_timer ((struct timer *)&sk->time_wait);

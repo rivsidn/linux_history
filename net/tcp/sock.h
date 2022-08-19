@@ -36,8 +36,9 @@ struct sock
 	 * send_seq	本机发送的序列号
 	 * acked_seq	本机发送的回复序列号
 	 * copied_seq	TODO
-	 * rcv_ack_seq	
-	 * window_seq	
+	 * rcv_ack_seq	收到对端回复的ack序列号
+	 * window_seq	对端回复的ack+对端的window号，既是本端可以发送的序号大小
+	 * fin_seq	
 	 */
 	unsigned long send_seq;
 	unsigned long acked_seq;
@@ -76,6 +77,10 @@ struct sock
 	/* 此处mtu 是TCP 数据长度 */
 	unsigned short mtu;
 	unsigned short num;
+	/*
+	 * cong_window	允许发送之后还未收到回复的报文个数上限
+	 * packets_out	TCP发送之后还没收到ACK和回复的报文个数
+	 */
 	unsigned short cong_window;
 	unsigned short packets_out;
 	unsigned short urg;
@@ -133,7 +138,6 @@ struct proto
 	volatile struct sock *sock_array[SOCK_ARRAY_SIZE];
 };
 
-/* 可以理解成是定时器类型 */
 #define TIME_WRITE 1
 #define TIME_CLOSE 2
 #define TIME_KEEPOPEN 3
@@ -151,6 +155,7 @@ struct sk_buff
 	struct sk_buff *prev;
 	struct sk_buff *link3;
 	volatile struct sock *sk;
+	/* 报文发送时间，用于计算rtt */
 	unsigned long when; /* used to compute rtt's. */
 	struct device *dev;
 	void *mem_addr;

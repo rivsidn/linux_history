@@ -114,19 +114,18 @@ tcp_time_wait (volatile struct sock *sk)
 static void
 tcp_retransmit (volatile struct sock *sk, int all)
 {
-   if (all) 
-     {
-	ip_retransmit (sk, all);
-	return;
-     }
-   sk->rtt *= 2; /* exponential back off. */
-   if (sk->cong_window > 1)
-     sk->cong_window = sk->cong_window / 2;
-   sk->exp_growth = 0;
+	if (all) 
+	{
+		ip_retransmit (sk, all);
+		return;
+	}
+	sk->rtt *= 2; /* exponential back off. */
+	if (sk->cong_window > 1)
+		sk->cong_window = sk->cong_window / 2;
+	sk->exp_growth = 0;
 
-   /* do the actuall retransmit. */
-   ip_retransmit (sk, all);
-   
+	/* do the actuall retransmit. */
+	ip_retransmit (sk, all);
 }
 
 /* this routine is called by the icmp module when it gets some
@@ -1353,27 +1352,31 @@ tcp_close (volatile struct sock *sk, int timeout)
 }
 
 
-/* This routine takes stuff off of the write queue, and puts it in the
-   xmit queue. */
+/* This routine takes stuff off of the write queue, and puts it in the xmit queue. */
 static  void
 tcp_write_xmit (volatile struct sock *sk)
 {
-  struct sk_buff *skb;
-  while (sk->wfront != NULL && before (sk->wfront->h.seq, sk->window_seq) &&
-	 sk->packets_out < sk->cong_window)
-    {
-      skb = sk->wfront;
-      sk->wfront = skb->next;
-      if (sk->wfront == NULL)
-	sk->wback = NULL;
-      sk->prot->queue_xmit (sk, skb->dev, skb, skb->free);
-    }
+	struct sk_buff *skb;
+	/* 从写队列中取出数据，放到发送队列中 */
+	while (sk->wfront != NULL && before (sk->wfront->h.seq, sk->window_seq) && sk->packets_out < sk->cong_window)
+	{
+		skb = sk->wfront;
+		sk->wfront = skb->next;
+		if (sk->wfront == NULL)
+			sk->wback = NULL;
+		sk->prot->queue_xmit (sk, skb->dev, skb, skb->free);
+	}
 }
 
 
 
 /* This routine deals with incoming acks, but not outgoing ones. */
-/* 处理收到的ack 报文 */
+/*
+ * 处理收到的ack 报文
+ * 返回值:
+ * 0	异常;
+ * 1	正常.
+ */
 
 static  int
 tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
@@ -1381,12 +1384,14 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	unsigned long ack;
 	ack = net32(th->ack_seq);
 
-	if (!between (ack , sk->rcv_ack_seq, sk->send_seq)) 
+	/* 正常情况下，回复的ack 应该在已经回复的ack 和本端已经发送的seq 之间 */
+	if (!between (ack , sk->rcv_ack_seq, sk->send_seq))
 	{
-		if (after (ack, sk->send_seq) || sk->state != TCP_ESTABLISHED) 
+		if (after (ack, sk->send_seq) || sk->state != TCP_ESTABLISHED)
 		{
 			return (0);
 		}
+		/* 如果keepopen 使能，重新设置定时器 */
 		if (sk->keepopen)
 			reset_timer ((struct timer *)&sk->time_wait);
 		sk->retransmits = 0;
@@ -1395,10 +1400,10 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 
 	sk->window_seq = ack + net16(th->window);
 
-
 	/* we don't want too many packets out there. */
 	if (sk->cong_window < 2048 && ack != sk->rcv_ack_seq)
 	{
+		/* 增加拥塞窗口 */
 		if (sk->exp_growth)
 			sk->cong_window *= 2;
 		else
@@ -1410,6 +1415,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	/* see if we can take anything off of the retransmit queue. */
 	while (sk->send_head != NULL)
 	{
+		/* 将ack之前的报文全部释放 */
 		if (before (sk->send_head->h.seq, ack+1))
 		{
 			struct sk_buff *oskb;
@@ -1419,7 +1425,8 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 			oskb = sk->send_head;
 			/* estimate the rtt. */
 			sk->rtt += ((jiffies - oskb->when) - sk->rtt)/2;
-			if (sk->rtt < 30) sk->rtt = 30;
+			if (sk->rtt < 30)
+				sk->rtt = 30;
 			sk->send_head = oskb->link3;
 			if (sk->send_head == NULL) 
 			{
@@ -1446,6 +1453,10 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 					}
 				}
 			}
+			/*
+			 * 发送TCP包的时候free=0，报文发送之后并不立即释放;
+			 * ip_queue_xmit()将报文放到队列中，此处释放.
+			 */
 			free_skb  (oskb, FREE_WRITE); /* write. */
 			sti();
 			if (!sk->dead)
@@ -1455,7 +1466,6 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 		{
 			break;
 		}
-
 	}
 
 
@@ -1470,10 +1480,11 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	}
 	sk->retransmits = 0;
 
-	/* maybe we can take some stuff off of the write queue, and put it onto
-	   the xmit queue. */
+	/* maybe we can take some stuff off of the write queue, and put it onto the xmit queue. */
+	/* 如果要发送的数据不为空且满足拥塞条件 */
 	if (sk->wfront != NULL && sk->packets_out < sk->cong_window)
 	{
+		/* 满足窗口要求 */
 		if (after (sk->window_seq, sk->wfront->h.seq))
 		{
 			tcp_write_xmit (sk);
@@ -1481,8 +1492,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	}
 	else
 	{
-		if (sk->send_head == NULL && sk->ack_backlog == 0 &&
-				sk->state != TCP_TIME_WAIT)
+		if (sk->send_head == NULL && sk->ack_backlog == 0 && sk->state != TCP_TIME_WAIT)
 		{
 			delete_timer((struct timer *)&sk->time_wait);
 			sk->timeout = 0;
@@ -1499,11 +1509,11 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	}
 
 	/* see if we are done. */
-	if ( sk->state == TCP_TIME_WAIT)
+	if (sk->state == TCP_TIME_WAIT)
 	{
-		if (sk->rcv_ack_seq == sk->send_seq && 	 
-				sk->acked_seq == sk->fin_seq);
-		if (!sk->dead) wake_up (sk->sleep);
+		if (sk->rcv_ack_seq == sk->send_seq && sk->acked_seq == sk->fin_seq);
+		if (!sk->dead)
+			wake_up (sk->sleep);
 		sk->state = TCP_CLOSE;
 	}
 
@@ -1526,7 +1536,8 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 				sk->state = TCP_CLOSE;
 			}
 		}
-		if (!sk->dead) wake_up (sk->sleep);
+		if (!sk->dead)
+			wake_up (sk->sleep);
 	}
 
 	return (1);
@@ -1743,112 +1754,112 @@ static  int
 tcp_fin (volatile struct sock *sk, struct tcp_header *th, 
 	 unsigned long saddr, struct device *dev)
 {
-  struct sk_buff *buff;
-  struct tcp_header *t1;
-  int tmp;
-  PRINTK ("tcp_fin (sk=%X, th=%X, saddr=%X, dev=%X)\n",
-	  sk, th, saddr, dev);
-  
-  if (!sk->dead)
-    {
-      wake_up (sk->sleep);
-    }
+	struct sk_buff *buff;
+	struct tcp_header *t1;
+	int tmp;
+	PRINTK ("tcp_fin (sk=%X, th=%X, saddr=%X, dev=%X)\n",
+			sk, th, saddr, dev);
 
-  /* after sending the fin, we aren't allowed to write anymore. */
-  sk->shutdown |= SEND_SHUTDOWN;
+	if (!sk->dead)
+	{
+		wake_up (sk->sleep);
+	}
 
-  sk->err = 0;
-  switch (sk->state)
-    {
-    case TCP_SYN_RECV:
-    case TCP_SYN_SENT:
-    case TCP_ESTABLISHED:
-      sk->state = TCP_LAST_ACK;
-      break;
+	/* after sending the fin, we aren't allowed to write anymore. */
+	sk->shutdown |= SEND_SHUTDOWN;
 
-     default:
-    case TCP_FIN_WAIT1:
-    case TCP_TIME_WAIT:
-      sk->state = TCP_LAST_ACK;
-      /* start the timers. */
-      sk->time_wait.len = TCP_TIMEWAIT_LEN;
-      sk->timeout = TIME_CLOSE;
-      reset_timer ((struct timer *)&sk->time_wait);
-      return (0);
+	sk->err = 0;
+	switch (sk->state)
+	{
+		case TCP_SYN_RECV:
+		case TCP_SYN_SENT:
+		case TCP_ESTABLISHED:
+			sk->state = TCP_LAST_ACK;
+			break;
 
-    case TCP_FIN_WAIT2:
-      sk->state = TCP_CLOSE;
-      return (0);
-    }
+		default:
+		case TCP_FIN_WAIT1:
+		case TCP_TIME_WAIT:
+			sk->state = TCP_LAST_ACK;
+			/* start the timers. */
+			sk->time_wait.len = TCP_TIMEWAIT_LEN;
+			sk->timeout = TIME_CLOSE;
+			reset_timer ((struct timer *)&sk->time_wait);
+			return (0);
 
-  /* send an ack and our own fin. */
-  buff=sk->prot->wmalloc(sk,MAX_ACK_SIZE,1);
-  if (buff == NULL)
-    {
-       /* we will ignore the fin.  That way it will be sent again. */
-       return (1);
-    }
+		case TCP_FIN_WAIT2:
+			sk->state = TCP_CLOSE;
+			return (0);
+	}
 
-  buff->mem_addr = buff;
-  buff->mem_len = MAX_ACK_SIZE;
-  buff->len=sizeof (struct tcp_header);
-  buff->sk = sk;
+	/* send an ack and our own fin. */
+	buff=sk->prot->wmalloc(sk,MAX_ACK_SIZE,1);
+	if (buff == NULL)
+	{
+		/* we will ignore the fin.  That way it will be sent again. */
+		return (1);
+	}
 
-  t1 = (struct tcp_header *)(buff + 1);
-  /* put in the ip_header and routing stuff. */
-  tmp = sk->prot->build_header (buff, sk->saddr, sk->daddr, &dev,
-				IP_TCP,  sk->opt, MAX_ACK_SIZE);
-  if (tmp < 0)
-    {
-      sk->prot->wfree(sk, buff->mem_addr, buff->mem_len);
-      return (0);
-    }
+	buff->mem_addr = buff;
+	buff->mem_len = MAX_ACK_SIZE;
+	buff->len=sizeof (struct tcp_header);
+	buff->sk = sk;
 
-  buff->len += tmp;
-  t1 = (struct tcp_header *)((char *)t1 +tmp);
-  
-  memcpy (t1, th, sizeof (*t1));
+	t1 = (struct tcp_header *)(buff + 1);
+	/* put in the ip_header and routing stuff. */
+	tmp = sk->prot->build_header (buff, sk->saddr, sk->daddr, &dev,
+			IP_TCP,  sk->opt, MAX_ACK_SIZE);
+	if (tmp < 0)
+	{
+		sk->prot->wfree(sk, buff->mem_addr, buff->mem_len);
+		return (0);
+	}
 
-  /* swap the send and the receive. */
-  t1->dest = th->source;
-  t1->source = th->dest;
+	buff->len += tmp;
+	t1 = (struct tcp_header *)((char *)t1 +tmp);
+
+	memcpy (t1, th, sizeof (*t1));
+
+	/* swap the send and the receive. */
+	t1->dest = th->source;
+	t1->source = th->dest;
 
 
-  t1->seq = net32(sk->send_seq++);
+	t1->seq = net32(sk->send_seq++);
 
-  /* contains the one that needs to be acked. */
-  sk->fin_seq = th->seq+1;
+	/* contains the one that needs to be acked. */
+	sk->fin_seq = th->seq+1;
 
-  buff->h.seq = sk->send_seq;
-  t1->window = net16(sk->prot->rspace(sk));
+	buff->h.seq = sk->send_seq;
+	t1->window = net16(sk->prot->rspace(sk));
 
-  t1->res1=0;
-  t1->res2=0;
-  t1->rst = 0;
-  t1->urg = 0;
-  t1->syn = 0;
-  t1->psh = 0;
-  t1->ack = 1; 
-  t1->fin = 1;
-  t1->ack_seq = net32(sk->acked_seq);
+	t1->res1=0;
+	t1->res2=0;
+	t1->rst = 0;
+	t1->urg = 0;
+	t1->syn = 0;
+	t1->psh = 0;
+	t1->ack = 1; 
+	t1->fin = 1;
+	t1->ack_seq = net32(sk->acked_seq);
 
-  t1->doff = sizeof (*t1)/4;
-  tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
+	t1->doff = sizeof (*t1)/4;
+	tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
 
-  /* can't just queue this up.  It should go at the end of
-     the write queue. */
-  if (sk->wback != NULL)
-    {
-      buff->next = NULL;
-      sk->wback->next = buff;
-      sk->wback = buff;
-    }
-  else
-    {
-      sk->prot->queue_xmit (sk, dev, buff,0);
-    }
+	/* can't just queue this up.  It should go at the end of
+	   the write queue. */
+	if (sk->wback != NULL)
+	{
+		buff->next = NULL;
+		sk->wback->next = buff;
+		sk->wback = buff;
+	}
+	else
+	{
+		sk->prot->queue_xmit (sk, dev, buff,0);
+	}
 
-  return (0);
+	return (0);
 }
 
 
