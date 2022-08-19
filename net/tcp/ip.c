@@ -868,6 +868,7 @@ ip_retransmit (volatile struct sock *sk, int all)
 		sk->prot->retransmits ++;
 		if (!all)
 			break;
+		/* 重传的大小不能查过拥塞窗口限制 */
 		/* this should cut it off before we send too many packets. */
 		if (sk->retransmits > sk->cong_window)
 			break;

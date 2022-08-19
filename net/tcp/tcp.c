@@ -114,7 +114,7 @@ tcp_time_wait (volatile struct sock *sk)
 static void
 tcp_retransmit (volatile struct sock *sk, int all)
 {
-	if (all) 
+	if (all)
 	{
 		ip_retransmit (sk, all);
 		return;
@@ -1473,6 +1473,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	   some acks i.e. had to retransmit something, and we succeded, we
 	   should then attempt to retransmit everything right now. */
 
+	/* 此处检查是否需要重传 */
 	if (sk->retransmits && sk->send_head != NULL)
 	{
 		sk->prot->retransmit (sk,1);

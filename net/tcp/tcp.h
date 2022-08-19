@@ -60,10 +60,12 @@ enum {
 #define MIN_WRITE_SPACE 2048
 #define TCP_WINDOW_DIFF 2048
 
+/* 检测路由前尝试的次数 */
 #define TCP_RETR1       7       /* this is howmany retries it does
 				   before it tries to figure out
 				   if the gateway is down. */
 
+/* 尝试的次数 */
 #define TCP_RETR2      10	/* this should take between 3 and
 				   ten minutes ( 1024 * rtt). */
 

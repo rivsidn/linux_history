@@ -60,6 +60,10 @@ struct sock
 	struct sk_buff *send_tail;
 	struct sk_buff *send_head;
 	struct sk_buff *back_log;
+	/*
+	 * 该值有两种意思:
+	 * ip_retransmit() 中表示发送报文的个数，其他地方表示报文是否需要重传.
+	 */
 	long retransmits;
 	/*
 	 * wback	报文单向链表，tcp_write()中添加
@@ -134,7 +138,7 @@ struct proto
 	int (*ioctl) (volatile struct sock *sk, int cmd, unsigned long arg);
 	int (*init) (volatile struct sock *sk);
 	unsigned short max_header;
-	unsigned long retransmits;
+	unsigned long retransmits;	//统计信息
 	volatile struct sock *sock_array[SOCK_ARRAY_SIZE];
 };
 
