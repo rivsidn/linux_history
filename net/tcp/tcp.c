@@ -95,21 +95,22 @@ get_firstr(volatile struct sock *sk)
 static  long
 diff (unsigned long seq1, unsigned long seq2)
 {
-   long d;
-   d=seq1-seq2;
-   if (d > 0) return (d);
-   /* I hope this returns what I want. */
-   return (~d+1);
+	long d;
+	d=seq1-seq2;
+	if (d > 0)
+		return (d);
+	/* I hope this returns what I want. */
+	return (~d+1);
 }
 
  /* enter the time wait state. */
 static  void
 tcp_time_wait (volatile struct sock *sk)
 {
-   sk->state = TCP_TIME_WAIT;
-   sk->time_wait.len = TCP_TIMEWAIT_LEN;
-   sk->timeout = TIME_CLOSE;
-   reset_timer ((struct timer *)&sk->time_wait);
+	sk->state = TCP_TIME_WAIT;
+	sk->time_wait.len = TCP_TIMEWAIT_LEN;
+	sk->timeout = TIME_CLOSE;
+	reset_timer ((struct timer *)&sk->time_wait);
 }
 
 static void
@@ -416,21 +417,21 @@ static  int
 tcp_build_header(struct tcp_header *th, volatile struct sock *sk, int push)
 {
 
- /* want to get rid of this. */
-  memcpy (th,(void *) &(sk->dummy_th), sizeof (*th));
-  th->seq = net32(sk->send_seq);
-  th->psh = (push == 0) ? 1 : 0;
-  th->doff = sizeof (*th)/4;
-  th->ack = 1;
-  th->fin = 0;
-  sk->ack_backlog = 0;
-  sk->bytes_rcv = 0;
-  sk->ack_timed = 0;
-  th->ack_seq = net32(sk->acked_seq);
-  sk->window = sk->prot->rspace(sk);
-  th->window = net16(sk->window);
+	/* want to get rid of this. */
+	memcpy (th,(void *) &(sk->dummy_th), sizeof (*th));
+	th->seq = net32(sk->send_seq);
+	th->psh = (push == 0) ? 1 : 0;
+	th->doff = sizeof (*th)/4;
+	th->ack = 1;
+	th->fin = 0;
+	sk->ack_backlog = 0;
+	sk->bytes_rcv = 0;
+	sk->ack_timed = 0;
+	th->ack_seq = net32(sk->acked_seq);
+	sk->window = sk->prot->rspace(sk);
+	th->window = net16(sk->window);
 
-  return (sizeof (*th));
+	return (sizeof (*th));
 }
 
 /* This routine copies from a user buffer into a socket, and starts
@@ -681,57 +682,56 @@ tcp_read_wakeup(volatile struct sock *sk)
 static  void
 cleanup_rbuf (volatile struct sock *sk)
 {
-   PRINTK ("cleaning rbuf for sk=%X\n",sk);
-  /* we have to loop through all the buffer headers, and 
-     try to free up all the space we can. */
-  while (sk->rqueue != NULL )
-    {
-      struct sk_buff *skb;
-      skb=sk->rqueue->next;
-      if (!skb->used) break;
-      if (sk->rqueue == skb)
+	PRINTK ("cleaning rbuf for sk=%X\n",sk);
+	/* we have to loop through all the buffer headers, and 
+	   try to free up all the space we can. */
+	while (sk->rqueue != NULL )
 	{
-	  sk->rqueue = NULL;
+		struct sk_buff *skb;
+		skb=sk->rqueue->next;
+		if (!skb->used) break;
+		if (sk->rqueue == skb)
+		{
+			sk->rqueue = NULL;
+		}
+		else
+		{
+			skb->next->prev = skb->prev;
+			skb->prev->next = skb->next;
+		}
+		skb->sk = sk;
+		free_skb (skb, FREE_READ);
 	}
-      else
-	{
-	  skb->next->prev = skb->prev;
-	  skb->prev->next = skb->next;
-	}
-      skb->sk = sk;
-      free_skb (skb, FREE_READ);
-    }
-   /* at this point we should send an ack if the difference in
-      the window, and the amount of space is bigger than
-      TCP_WINDOW_DIFF */
-   PRINTK ("sk->window left = %d, sk->prot->rspace(sk)=%d\n",
-	   sk->window - sk->bytes_rcv, sk->prot->rspace(sk));
+	/* at this point we should send an ack if the difference in
+	   the window, and the amount of space is bigger than
+	   TCP_WINDOW_DIFF */
+	PRINTK ("sk->window left = %d, sk->prot->rspace(sk)=%d\n",
+		sk->window - sk->bytes_rcv, sk->prot->rspace(sk));
 
-   if ((sk->prot->rspace(sk) >
-	(sk->window - sk->bytes_rcv + TCP_WINDOW_DIFF)) ||
-       (sk->window - sk->bytes_rcv < 2*sk->mtu)) 
-     {
-	/* force it to send an ack. */
-	sk->ack_backlog++;
-	if (sk->timeout != TIME_WRITE && sk->state == TCP_ESTABLISHED)
-	  {
-	     sk->time_wait.len = TCP_ACK_TIME;
-	     sk->timeout=TIME_WRITE;
-	     reset_timer ((struct timer *)&sk->time_wait);
-	  }
-     }
+	if ((sk->prot->rspace(sk) >
+				(sk->window - sk->bytes_rcv + TCP_WINDOW_DIFF)) ||
+			(sk->window - sk->bytes_rcv < 2*sk->mtu)) 
+	{
+		/* force it to send an ack. */
+		sk->ack_backlog++;
+		if (sk->timeout != TIME_WRITE && sk->state == TCP_ESTABLISHED)
+		{
+			sk->time_wait.len = TCP_ACK_TIME;
+			sk->timeout=TIME_WRITE;
+			reset_timer ((struct timer *)&sk->time_wait);
+		}
+	}
 
 }
 
 /* handle reading urgent data. */
-static  int
+static int
 tcp_read_urg(volatile struct sock * sk,
 	     unsigned char *to, int len, unsigned flags)
 {
 	int copied = 0;
 	struct sk_buff *skb;
-	PRINTK ("tcp_read_urg(sk=%X, to=%X, len=%d, flags=%X)\n",
-			sk, to, len, flags);
+	PRINTK ("tcp_read_urg(sk=%X, to=%X, len=%d, flags=%X)\n", sk, to, len, flags);
 	print_sk(sk);
 	while (len > 0)
 	{
@@ -742,7 +742,8 @@ tcp_read_urg(volatile struct sock * sk,
 			release_sock (sk);
 			if (sk->state > TCP_CLOSING)
 			{
-				if (copied) return (copied);
+				if (copied)
+					return (copied);
 				return (-ENOTCONN);
 			}
 			cli();
@@ -752,7 +753,8 @@ tcp_read_urg(volatile struct sock * sk,
 				if (current->signal & ~current->blocked)
 				{
 					sti();
-					if (copied) return (copied);
+					if (copied)
+						return (copied);
 					return (-ERESTARTSYS);
 				}
 			}
@@ -760,18 +762,17 @@ tcp_read_urg(volatile struct sock * sk,
 			sk->inuse = 1;
 		}
 		/* now we have some urgent data, we must find it.*/
-		for (skb = sk->rqueue->next; skb->next != sk->rqueue;
-				skb = skb->next)
+		/* 寻找urgent 数据 */
+		for (skb = sk->rqueue->next; skb->next != sk->rqueue; skb = skb->next)
 		{
 			int offset;
 			int amt;
-			if (!skb->h.th->urg) continue;
+			if (!skb->h.th->urg)
+				continue;
 			offset = 0;
 			amt = min(skb->h.th->urg_ptr,len);
 			verify_area (to, amt);
-			memcpy_tofs (to, (unsigned char *)(skb->h.th) +
-					skb->h.th->doff*4
-					+ offset, amt);
+			memcpy_tofs (to, (unsigned char *)(skb->h.th) + skb->h.th->doff*4 + offset, amt);
 
 			if (!(flags & MSG_PEEK))
 			{
@@ -1549,6 +1550,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
    will be have already been moved into it.  If there is no room,
    then we will just have to discard the packet. */
 
+/* TODO: 这个程序没看懂... */
 static  int
 tcp_data (struct sk_buff *skb, volatile struct sock *sk, 
 	  unsigned long saddr, unsigned short len)
@@ -1558,6 +1560,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 
 	th = skb->h.th;
 	print_th (th);
+	/* 此时的skb->len 是TCP 数据长度 */
 	skb->len = len - (th->doff*4);
 
 	PRINTK("tcp_data len = %d sk = %X:\n",skb->len, sk);
@@ -1565,6 +1568,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 
 	sk->bytes_rcv += skb->len;
 
+	/* 数据长度为 0，只包含TCP 头 */
 	if (skb->len == 0 && !th->fin && !th->urg && !th->psh)
 	{
 		/* don't want to keep passing ack's back and fourth. */
@@ -1577,12 +1581,14 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	if (sk->shutdown & RCV_SHUTDOWN)
 	{
 		/* just ack everything. */
+		/* 收到报文之后仅仅是回复ACK，不做任何其它处理 */
 		sk->acked_seq = th->seq + skb->len + th->syn + th->fin;
 		tcp_send_ack (sk->send_seq, sk->acked_seq, sk, skb->h.th, saddr);
 		free_skb (skb, FREE_READ);
 		if (sk->state == TCP_TIME_WAIT && sk->acked_seq == sk->fin_seq)
 		{
-			if (!sk->dead) wake_up (sk->sleep);
+			if (!sk->dead)
+				wake_up (sk->sleep);
 			sk->state = TCP_CLOSE;
 		}
 		return (0);
@@ -1594,6 +1600,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	   in order, there will be no performance loss, and if they come
 	   out of order we will be able to fit things in nicely. */
 
+	/* 将收到的报文加入到rqueue 队列中 */
 	if (sk->rqueue == NULL)
 	{
 		PRINTK ("tcp_data: skb = %X:\n",skb);
@@ -1609,11 +1616,13 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 		PRINTK ("tcp_data adding to chain sk = %X:\n",sk);
 		print_sk (sk);
 
+		/* 按照顺序排列 */
 		for (skb1=sk->rqueue; ; skb1=skb1->prev)
 		{
 			PRINTK ("skb1=%X\n",skb1);
 			print_skb(skb1);
 			PRINTK ("skb1->h.th->seq = %d\n", skb1->h.th->seq);
+			/* 序列号按照由小到大的顺序排列 */
 			if (after ( th->seq+1, skb1->h.th->seq))
 			{
 				skb->prev = skb1;
@@ -1660,6 +1669,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 			sk->acked_seq = th->ack_seq;
 			skb->acked = 1;
 
+			/* TODO:这里没看明白？ */
 			for (skb2=skb->next; skb2 != sk->rqueue->next; skb2=skb2->next)
 			{
 				if (before(skb2->h.th->seq, sk->acked_seq+1))
@@ -1677,10 +1687,10 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 			/* this if statement needs to be simplified. */
 
 			if (!sk->delay_acks || 
-					sk->ack_backlog >= sk->max_ack_backlog || 
-					sk->window < 2*sk->mtu + sk->bytes_rcv ||
-					sk->bytes_rcv > sk->max_unacked || 
-					th->fin)
+				sk->ack_backlog >= sk->max_ack_backlog || 
+				sk->window < 2*sk->mtu + sk->bytes_rcv ||
+				sk->bytes_rcv > sk->max_unacked || 
+				th->fin)
 			{
 				tcp_send_ack (sk->send_seq, sk->acked_seq,sk,th, saddr);
 			}
@@ -1696,6 +1706,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	else
 	{
 		/* we missed a packet.  Send an ack to try to resync things. */
+		/* 丢失了一个报文，发送ack同步 */
 		tcp_send_ack (sk->send_seq, sk->acked_seq, sk, th, saddr);
 	}
 
@@ -1726,6 +1737,7 @@ tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	if (!sk->dead)
 		wake_up(sk->sleep);
 
+	/* 按照正常的数据方式接收 */
 	if (sk->urginline)
 	{
 		th->urg = 0;
@@ -1738,7 +1750,9 @@ tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	if (!sk->urg)
 	{
 		/* so if we get more urgent data, we don't signal the user again. */
-		if (sk->proc == 0) return (0);
+		if (sk->proc == 0)
+			return (0);
+		/* 发送信号给进程 */
 		if (sk->proc > 0)
 		{
 			kill_proc (sk->proc, SIGURG, 1);
@@ -2243,7 +2257,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 				}
 			}
 
-			if ( tcp_data (skb, sk, saddr, len))
+			if (tcp_data (skb, sk, saddr, len))
 			{
 				free_skb (skb, FREE_READ);
 				release_sock(sk);

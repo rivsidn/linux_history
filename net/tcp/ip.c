@@ -674,86 +674,86 @@ ip_send_check(struct ip_header *iph)
 int
 ip_rcv(struct sk_buff *skb, struct device *dev, struct packet_type *pt)
 {
-  struct ip_header *iph;
-  unsigned char hash;
-  unsigned char flag=0;
-  static struct options opt; /* since we don't use these yet, and they
-				take up stack space. */
-  struct ip_protocol *ipprot;
+	struct ip_header *iph;
+	unsigned char hash;
+	unsigned char flag=0;
+	static struct options opt; /* since we don't use these yet, and they
+				      take up stack space. */
+	struct ip_protocol *ipprot;
 
-  iph=skb->h.iph;
+	iph=skb->h.iph;
 
-  PRINTK("<<\n");
-  print_iph(iph);
+	PRINTK("<<\n");
+	print_iph(iph);
 
-  if (ip_csum (iph) || do_options (iph,&opt) || iph->version != 4)
-    {
-       PRINTK ("ip packet thrown out. \n");
-       skb->sk = NULL;
-       free_skb(skb, 0);
-       return (0);
-    }
+	if (ip_csum (iph) || do_options (iph,&opt) || iph->version != 4)
+	{
+		PRINTK ("ip packet thrown out. \n");
+		skb->sk = NULL;
+		free_skb(skb, 0);
+		return (0);
+	}
 
-  /* for now we will only deal with packets meant for us. */
-  if (!my_ip_addr(iph->daddr))
-    {
-       PRINTK ("packet meant for someone else.\n");
-       skb->sk = NULL;
-       free_skb(skb, 0);
-       return (0);
-    }
+	/* for now we will only deal with packets meant for us. */
+	if (!my_ip_addr(iph->daddr))
+	{
+		PRINTK ("packet meant for someone else.\n");
+		skb->sk = NULL;
+		free_skb(skb, 0);
+		return (0);
+	}
 
-  /* deal with fragments.  or don't for now.*/
-  if ((iph->frag_off & 64) || (net16(iph->frag_off)&0x1fff))
-    {
-       printk ("packet fragmented. \n");
-       skb->sk = NULL;
-       free_skb(skb, 0);
-       return(0);
-    }
+	/* deal with fragments.  or don't for now.*/
+	if ((iph->frag_off & 64) || (net16(iph->frag_off)&0x1fff))
+	{
+		printk ("packet fragmented. \n");
+		skb->sk = NULL;
+		free_skb(skb, 0);
+		return(0);
+	}
 
-  skb->h.raw += iph->ihl*4;
+	skb->h.raw += iph->ihl*4;
 
-  /* add it to the arp table if it's talking to us.  That way we
-     will be able to talk to them also. */
+	/* add it to the arp table if it's talking to us.  That way we
+	   will be able to talk to them also. */
 
-  hash = iph->protocol & (MAX_IP_PROTOS -1);
-  for (ipprot = ip_protos[hash]; ipprot != NULL; ipprot=ipprot->next)
-    {
-       struct sk_buff *skb2;
-       PRINTK ("Using protocol = %X:\n", ipprot);
-       print_ipprot (ipprot);
-       /* pass it off to everyone who wants it. */
-       /* we should check the return values here. */
-       /* see if we need to make a copy of it.  This will
-	  only be set if more than one protpocol wants it. 
-	  and then not for the last one. */
+	hash = iph->protocol & (MAX_IP_PROTOS -1);
+	for (ipprot = ip_protos[hash]; ipprot != NULL; ipprot=ipprot->next)
+	{
+		struct sk_buff *skb2;
+		PRINTK ("Using protocol = %X:\n", ipprot);
+		print_ipprot (ipprot);
+		/* pass it off to everyone who wants it. */
+		/* we should check the return values here. */
+		/* see if we need to make a copy of it.  This will
+		   only be set if more than one protpocol wants it. 
+		   and then not for the last one. */
 
-       if (ipprot->copy)
-	 {
-	    skb2 = malloc (skb->mem_len);
-	    if (skb2 == NULL) continue;
-	    memcpy (skb2, skb, skb->mem_len);
-	    skb2->mem_addr = skb2;
-	 }
-       else
-	 {
-	    skb2 = skb;
-	 }
-       flag = 1;
-       ipprot->handler (skb2, dev, &opt, iph->daddr,
-			net16(iph->tot_len) - iph->ihl*4,
-			iph->saddr, 0, ipprot);
-    }
-  if (!flag)
-    {
-       icmp_reply (skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, dev);
-       skb->sk = NULL;
-       free_skb (skb, 0);
-    }
+		if (ipprot->copy)
+		{
+			skb2 = malloc (skb->mem_len);
+			if (skb2 == NULL) continue;
+			memcpy (skb2, skb, skb->mem_len);
+			skb2->mem_addr = skb2;
+		}
+		else
+		{
+			skb2 = skb;
+		}
+		flag = 1;
+		ipprot->handler (skb2, dev, &opt, iph->daddr,
+				net16(iph->tot_len) - iph->ihl*4,
+				iph->saddr, 0, ipprot);
+	}
+	if (!flag)
+	{
+		icmp_reply (skb, ICMP_DEST_UNREACH, ICMP_PROT_UNREACH, dev);
+		skb->sk = NULL;
+		free_skb (skb, 0);
+	}
 
 
-  return (0);
+	return (0);
 }
 
 

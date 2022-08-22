@@ -94,12 +94,17 @@ void print_th (struct tcp_header *);
    compare so long as neither of the numbers is within 4k of wrapping.
    Otherwise we must check for the wrap. */
 
+/*
+ * 序列号比较.
+ *
+ * seq1 < seq2 ?
+ */
 static inline int
 before (unsigned long seq1, unsigned long seq2)
 {
 	/* this inequality is strict. */
 	if (seq1 == seq2) return (0);
-	if (seq1 < seq2) 
+	if (seq1 < seq2)
 	{
 		if ((unsigned long)seq2-(unsigned long)seq1 < 32767UL) 
 		{
@@ -110,14 +115,12 @@ before (unsigned long seq1, unsigned long seq2)
 			return (0);
 		}
 	}
-	/* now we know seq1 > seq2.  So all we need to do is check to see
-	   if seq1 has wrapped. */
+	/* now we know seq1 > seq2.  So all we need to do is check to see if seq1 has wrapped. */
 	if (seq2 < 4096UL && seq1 > (0xffffffUL - 4096UL))
 	{
 		return (1);
 	}
 	return (0);
-
 }
 
 static inline int
