@@ -1622,7 +1622,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 			PRINTK ("skb1=%X\n",skb1);
 			print_skb(skb1);
 			PRINTK ("skb1->h.th->seq = %d\n", skb1->h.th->seq);
-			/* 序列号按照由小到大的顺序排列 */
+			/* 序列号按照由小到大的顺序排列，sk->rqueue 指向最大的序列号 */
 			if (after ( th->seq+1, skb1->h.th->seq))
 			{
 				skb->prev = skb1;
