@@ -1600,7 +1600,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	   in order, there will be no performance loss, and if they come
 	   out of order we will be able to fit things in nicely. */
 
-	/* 将收到的报文加入到rqueue 队列中 */
+	/* rqueue为空，直接将收到的报文放入到rqueue中 */
 	if (sk->rqueue == NULL)
 	{
 		PRINTK ("tcp_data: skb = %X:\n",skb);
@@ -1633,7 +1633,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 					sk->rqueue = skb;
 				break;
 			}
-			if  ( skb1->prev == sk->rqueue)
+			if (skb1->prev == sk->rqueue)
 			{
 				skb->next= skb1;
 				skb->prev = skb1->prev;
@@ -1651,6 +1651,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 
 	}
 
+	/* 此处的ack_seq 是应该回复该报文的seq */
 	th->ack_seq = th->seq + skb->len;
 	if (th->syn) th->ack_seq ++;
 	if (th->fin) th->ack_seq ++;
@@ -1666,10 +1667,11 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	{
 		if (before (th->seq, sk->acked_seq+1))
 		{
+			/* ack_seq 经过上边修改了，修改成了该报文该回复的ack_seq */
 			sk->acked_seq = th->ack_seq;
 			skb->acked = 1;
 
-			/* TODO:这里没看明白？ */
+			/* TODO: 这段代码没理解? */
 			for (skb2=skb->next; skb2 != sk->rqueue->next; skb2=skb2->next)
 			{
 				if (before(skb2->h.th->seq, sk->acked_seq+1))
@@ -1687,10 +1689,10 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 			/* this if statement needs to be simplified. */
 
 			if (!sk->delay_acks || 
-				sk->ack_backlog >= sk->max_ack_backlog || 
-				sk->window < 2*sk->mtu + sk->bytes_rcv ||
-				sk->bytes_rcv > sk->max_unacked || 
-				th->fin)
+			    sk->ack_backlog >= sk->max_ack_backlog || 
+			    sk->window < 2*sk->mtu + sk->bytes_rcv ||
+			    sk->bytes_rcv > sk->max_unacked || 
+			    th->fin)
 			{
 				tcp_send_ack (sk->send_seq, sk->acked_seq,sk,th, saddr);
 			}

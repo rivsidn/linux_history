@@ -97,7 +97,7 @@ void print_th (struct tcp_header *);
 /*
  * 序列号比较.
  *
- * seq1 < seq2 ?
+ * seq1 before seq2 ?
  */
 static inline int
 before (unsigned long seq1, unsigned long seq2)
@@ -123,6 +123,7 @@ before (unsigned long seq1, unsigned long seq2)
 	return (0);
 }
 
+/* seq1 after seq2 ？ */
 static inline int
 after (unsigned long seq1, unsigned long seq2)
 {
