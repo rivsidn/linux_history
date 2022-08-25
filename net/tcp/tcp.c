@@ -398,8 +398,7 @@ tcp_send_ack (unsigned long sequence, unsigned long ack,
 		sk->ack_backlog = 0;
 		sk->bytes_rcv = 0;
 		sk->ack_timed = 0;
-		if (sk->send_head == NULL &&
-				sk->wfront == NULL)
+		if (sk->send_head == NULL && sk->wfront == NULL)
 		{
 			delete_timer((struct timer *)&sk->time_wait);
 			sk->timeout = 0;
@@ -413,10 +412,9 @@ tcp_send_ack (unsigned long sequence, unsigned long ack,
 }
 
 /* this routine builds a generic tcp header. */
-static  int
+static int
 tcp_build_header(struct tcp_header *th, volatile struct sock *sk, int push)
 {
-
 	/* want to get rid of this. */
 	memcpy (th,(void *) &(sk->dummy_th), sizeof (*th));
 	th->seq = net32(sk->send_seq);
