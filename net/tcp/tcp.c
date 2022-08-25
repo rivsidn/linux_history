@@ -92,7 +92,7 @@ get_firstr(volatile struct sock *sk)
 	return (skb);
 }
 
-static  long
+static long
 diff (unsigned long seq1, unsigned long seq2)
 {
 	long d;
@@ -434,12 +434,9 @@ tcp_build_header(struct tcp_header *th, volatile struct sock *sk, int push)
 	return (sizeof (*th));
 }
 
-/* This routine copies from a user buffer into a socket, and starts
-   the transmit system. */
-
+/* This routine copies from a user buffer into a socket, and starts the transmit system. */
 static int
-tcp_write(volatile struct sock *sk, unsigned char *from,
-	  int len, int nonblock, unsigned flags)
+tcp_write(volatile struct sock *sk, unsigned char *from, int len, int nonblock, unsigned flags)
 {
 	int copied=0;
 	int copy;
@@ -457,11 +454,10 @@ tcp_write(volatile struct sock *sk, unsigned char *from,
 	while (len > 0)
 	{
 		/* first thing we do is make sure that we are established. */	 
-
+		/* 确保处于建立状态 */
 		while (sk->state != TCP_ESTABLISHED)
 		{
-			if (sk->state != TCP_SYN_SENT &&
-					sk->state != TCP_SYN_RECV)
+			if (sk->state != TCP_SYN_SENT && sk->state != TCP_SYN_RECV)
 			{
 				release_sock (sk);
 				if (sk->keepopen)
@@ -501,11 +497,11 @@ tcp_write(volatile struct sock *sk, unsigned char *from,
 			sti();
 			sk->inuse = 1;
 		}
-		/* we also need to worry about the window.  The smallest we
-		   will send is about 200 bytes. */
 
+		/* we also need to worry about the window.  The smallest we will send is about 200 bytes. */
 		copy = min (sk->mtu, diff(sk->window_seq, sk->send_seq));
-		if (copy < 200) copy = sk->mtu;
+		if (copy < 200)
+			copy = sk->mtu;
 		copy = min (copy, len);
 
 		skb=prot->wmalloc (sk, copy + prot->max_header+sizeof (*skb),0);
@@ -676,15 +672,13 @@ tcp_read_wakeup(volatile struct sock *sk)
 
 
 /* This routine frees used buffers. */
-/* It should consider sending an ack to let the
-   other end know we now have a bigger window. */
+/* It should consider sending an ack to let the other end know we now have a bigger window. */
 
 static  void
 cleanup_rbuf (volatile struct sock *sk)
 {
 	PRINTK ("cleaning rbuf for sk=%X\n",sk);
-	/* we have to loop through all the buffer headers, and 
-	   try to free up all the space we can. */
+	/* we have to loop through all the buffer headers, and try to free up all the space we can. */
 	while (sk->rqueue != NULL )
 	{
 		struct sk_buff *skb;
@@ -708,9 +702,8 @@ cleanup_rbuf (volatile struct sock *sk)
 	PRINTK ("sk->window left = %d, sk->prot->rspace(sk)=%d\n",
 		sk->window - sk->bytes_rcv, sk->prot->rspace(sk));
 
-	if ((sk->prot->rspace(sk) >
-				(sk->window - sk->bytes_rcv + TCP_WINDOW_DIFF)) ||
-			(sk->window - sk->bytes_rcv < 2*sk->mtu)) 
+	if ((sk->prot->rspace(sk) > (sk->window - sk->bytes_rcv + TCP_WINDOW_DIFF)) ||
+	    (sk->window - sk->bytes_rcv < 2*sk->mtu))
 	{
 		/* force it to send an ack. */
 		sk->ack_backlog++;
@@ -721,7 +714,6 @@ cleanup_rbuf (volatile struct sock *sk)
 			reset_timer ((struct timer *)&sk->time_wait);
 		}
 	}
-
 }
 
 /* handle reading urgent data. */
@@ -1550,7 +1542,6 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
    will be have already been moved into it.  If there is no room,
    then we will just have to discard the packet. */
 
-/* TODO: 这个程序没看懂... */
 static  int
 tcp_data (struct sk_buff *skb, volatile struct sock *sk, 
 	  unsigned long saddr, unsigned short len)
@@ -1671,7 +1662,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 			sk->acked_seq = th->ack_seq;
 			skb->acked = 1;
 
-			/* TODO: 这段代码没理解? */
+			/* 累计ACK，并不是每一个报文都回复ACK，可能针对多个报文回复一个ACK */
 			for (skb2=skb->next; skb2 != sk->rqueue->next; skb2=skb2->next)
 			{
 				if (before(skb2->h.th->seq, sk->acked_seq+1))

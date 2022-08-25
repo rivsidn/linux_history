@@ -194,13 +194,11 @@ net_timer (void)
 				sk->inuse = 0;
 				break;
 
-			case TIME_CLOSE: /* we've waited long enough, close the
-					    socket. */
+			case TIME_CLOSE: /* we've waited long enough, close the socket. */
 
 				sk->state = TCP_CLOSE;
 				delete_timer ((struct timer *)&sk->time_wait);
-				/* kill the arp entry 
-				   in case the hardware has changed. */
+				/* kill the arp entry in case the hardware has changed. */
 				arp_destroy (sk->daddr);
 				if (!sk->dead)
 					wake_up (sk->sleep);
