@@ -40,8 +40,7 @@ enum {
   TCP_ESTABLISHED=1,
   TCP_SYN_SENT,
   TCP_SYN_RECV,
-  TCP_CLOSING, /* not a valid state, just a seperator so we can use
-		  < tcp_closing or > tcp_closing for checks. */
+  TCP_CLOSING, /* not a valid state, just a seperator so we can use < tcp_closing or > tcp_closing for checks. */
   TCP_FIN_WAIT1,
   TCP_FIN_WAIT2,
   TCP_TIME_WAIT,

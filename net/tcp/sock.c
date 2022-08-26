@@ -1529,9 +1529,10 @@ sock_rspace (volatile struct sock *sk)
 	int amt;
 	if (sk != NULL)
 	{
-		if (sk->rmem_alloc >= SK_RMEM_MAX-2*MIN_WINDOW)
+		/* rmem_alloc 中必须预留一部分内存 */
+		if (sk->rmem_alloc >= SK_RMEM_MAX - 2*MIN_WINDOW)
 			return (0);
-		amt = min((SK_RMEM_MAX-sk->rmem_alloc)/2 - MIN_WINDOW, MAX_WINDOW);
+		amt = min((SK_RMEM_MAX - sk->rmem_alloc)/2 - MIN_WINDOW, MAX_WINDOW);
 		if (amt < 0)
 			return (0);
 		return (amt);

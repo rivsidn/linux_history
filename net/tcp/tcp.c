@@ -92,6 +92,7 @@ get_firstr(volatile struct sock *sk)
 	return (skb);
 }
 
+/* 可以理解成取两个数的绝对值 */
 static long
 diff (unsigned long seq1, unsigned long seq2)
 {
@@ -103,8 +104,8 @@ diff (unsigned long seq1, unsigned long seq2)
 	return (~d+1);
 }
 
- /* enter the time wait state. */
-static  void
+/* enter the time wait state. */
+static void
 tcp_time_wait (volatile struct sock *sk)
 {
 	sk->state = TCP_TIME_WAIT;
@@ -174,79 +175,78 @@ tcp_err (int err, unsigned char *header, unsigned long daddr,
 static int
 tcp_select (volatile struct sock *sk, int sel_type, select_table *wait)
 {
-  switch (sel_type)
-    {
-    case SEL_IN:
-       select_wait (sk->sleep, wait);
-       if (sk->rqueue != NULL &&
-	   (between (sk->copied_seq, sk->rqueue->next->h.th->seq - 1,
-		     sk->rqueue->next->h.th->seq + sk->rqueue->next->len) ||
-	    sk->state == TCP_LISTEN))
-	 {
-	    return (1);
-	 }
-
-      switch (sk->state)
+	switch (sel_type)
 	{
-	case TCP_LISTEN:
-	case TCP_ESTABLISHED:
-	case TCP_SYN_SENT:
-	case TCP_SYN_RECV:
-	   return (0);
-	default:
-	   return (1);
+		case SEL_IN:
+			select_wait (sk->sleep, wait);
+			if (sk->rqueue != NULL &&
+			    (between (sk->copied_seq, sk->rqueue->next->h.th->seq - 1, sk->rqueue->next->h.th->seq + sk->rqueue->next->len) ||
+			     sk->state == TCP_LISTEN))
+			{
+				return (1);
+			}
+
+			switch (sk->state)
+			{
+				case TCP_LISTEN:
+				case TCP_ESTABLISHED:
+				case TCP_SYN_SENT:
+				case TCP_SYN_RECV:
+					return (0);
+				default:
+					return (1);
+			}
+
+		case SEL_OUT:
+			select_wait (sk->sleep, wait);
+			if (sk->state != TCP_ESTABLISHED) return (1);
+			/* hack so it will probably be able to write something
+			   if it says it's ok to write. */
+			if (sk->prot->wspace(sk) >= MIN_WRITE_SPACE) return (1);
+			return (0);
+
+		case SEL_EX:
+			select_wait(sk->sleep,wait);
+			if (sk->err) return (1);
+			if (sk->state == TCP_FIN_WAIT1 ||
+			    sk->state == TCP_FIN_WAIT2 ||
+			    sk->state == TCP_TIME_WAIT ||
+			    sk->state == TCP_LAST_ACK)
+				return (1);
+			return (0);
 	}
-
-    case SEL_OUT:
-       select_wait (sk->sleep, wait);
-       if (sk->state != TCP_ESTABLISHED) return (1);
-      /* hack so it will probably be able to write something
-	 if it says it's ok to write. */
-      if (sk->prot->wspace(sk) >= MIN_WRITE_SPACE) return (1);
-      return (0);
-
-    case SEL_EX:
-      select_wait(sk->sleep,wait);
-      if (sk->err) return (1);
-      if (sk->state == TCP_FIN_WAIT1 ||
-	  sk->state == TCP_FIN_WAIT2 ||
-	  sk->state == TCP_TIME_WAIT ||
-	  sk->state == TCP_LAST_ACK)
-	return (1);
-      return (0);
-    }
-  return (0);
+	return (0);
 }
 
 static int
 tcp_ioctl (volatile struct sock *sk, int cmd, unsigned long arg)
 {
-   switch (cmd)
-     {
-       default:
-	return (-EINVAL);
+	switch (cmd)
+	{
+		default:
+			return (-EINVAL);
 #if 0
-       case SIOCATMARK:
-	/* try to figure out if we need to read some urgent data. */
-	if (sk->rqueue && sk->rqueue->next->th.urg)
-	  {
-	     int offset;
-	     struct sk_buff *skb;
-	     skb = sk->rqueue->next;
-	     offset = sk->copied_seq +1 - skb->th.seq - skb->th.syn;
-	     /* now we know we are at the urgent data. */
-	     if (offset >= skb->len)
-	       {
-		  verify_area ((void *)arg, sizeof (int));
-		  put_fs_long(1, (unsigned long *)arg);
-		  return (0);
-	       }
-	  }
-	verify_area ((void *)arg, sizeof (int));
-	put_fs_long(0, (unsigned long *)arg);
-	return (0);
+		case SIOCATMARK:
+			/* try to figure out if we need to read some urgent data. */
+			if (sk->rqueue && sk->rqueue->next->th.urg)
+			{
+				int offset;
+				struct sk_buff *skb;
+				skb = sk->rqueue->next;
+				offset = sk->copied_seq +1 - skb->th.seq - skb->th.syn;
+				/* now we know we are at the urgent data. */
+				if (offset >= skb->len)
+				{
+					verify_area ((void *)arg, sizeof (int));
+					put_fs_long(1, (unsigned long *)arg);
+					return (0);
+				}
+			}
+			verify_area ((void *)arg, sizeof (int));
+			put_fs_long(0, (unsigned long *)arg);
+			return (0);
 #endif
-     }
+	}
 }
 
 
@@ -320,11 +320,10 @@ tcp_check (struct tcp_header *th, int len, unsigned long saddr,
 
 
 /* 设置校验和 */
-static  void
+static void
 tcp_send_check (struct tcp_header *th, unsigned long saddr, 
 		unsigned long daddr, int len, volatile struct sock *sk)
 {
-
 	th->check = 0;
 	if (sk && sk->no_check)
 		return;
@@ -336,24 +335,23 @@ tcp_send_check (struct tcp_header *th, unsigned long saddr,
 /* 该程序发送ack 并更新窗口 */
 static void
 tcp_send_ack (unsigned long sequence, unsigned long ack,
-              volatile struct sock *sk,
-              struct tcp_header *th, unsigned long daddr)
+	      volatile struct sock *sk,
+	      struct tcp_header *th, unsigned long daddr)
 {
 	struct sk_buff *buff;
 	struct tcp_header *t1;
 	struct device *dev=NULL;
 	int tmp;
 
-	/* we need to grab some memory, and put together an ack, and then
-	   put it into the queue to be sent. */
-
+	/* we need to grab some memory, and put together an ack, and then put it into the queue to be sent. */
 	buff=sk->prot->wmalloc(sk,MAX_ACK_SIZE,1);
-	if (buff == NULL) 
+	if (buff == NULL)
 	{
 		/* force it to send an ack. */
 		sk->ack_backlog++;
 		if (sk->timeout != TIME_WRITE && sk->state < TCP_CLOSING)
 		{
+			/* TODO: 为什么定时器可以随意设置，不会影响其他的定时器么? */
 			sk->timeout = TIME_WRITE;
 			sk->time_wait.len = 10; /* got to do it quickly. */
 			reset_timer ((struct timer *)&sk->time_wait);
@@ -697,8 +695,7 @@ cleanup_rbuf (volatile struct sock *sk)
 	/* at this point we should send an ack if the difference in
 	   the window, and the amount of space is bigger than
 	   TCP_WINDOW_DIFF */
-	PRINTK ("sk->window left = %d, sk->prot->rspace(sk)=%d\n",
-		sk->window - sk->bytes_rcv, sk->prot->rspace(sk));
+	PRINTK ("sk->window left = %d, sk->prot->rspace(sk)=%d\n", sk->window - sk->bytes_rcv, sk->prot->rspace(sk));
 
 	if ((sk->prot->rspace(sk) > (sk->window - sk->bytes_rcv + TCP_WINDOW_DIFF)) ||
 	    (sk->window - sk->bytes_rcv < 2*sk->mtu))
@@ -730,6 +727,7 @@ tcp_read_urg(volatile struct sock * sk,
 		{
 			/* now at this point, we may have gotten some data. */
 			release_sock (sk);
+			/* 如果TCP快要关闭了，退出 */
 			if (sk->state > TCP_CLOSING)
 			{
 				if (copied)
@@ -760,10 +758,12 @@ tcp_read_urg(volatile struct sock * sk,
 			if (!skb->h.th->urg)
 				continue;
 			offset = 0;
+			/* TCP包数据部分头部的urg_ptr部分都是urg数据 */
 			amt = min(skb->h.th->urg_ptr,len);
 			verify_area (to, amt);
 			memcpy_tofs (to, (unsigned char *)(skb->h.th) + skb->h.th->doff*4 + offset, amt);
 
+			/* 如果没设置MSG_PEEK，则删除该数据包 */
 			if (!(flags & MSG_PEEK))
 			{
 				skb->urg_used = 1;
@@ -795,8 +795,10 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 	}
 
 	/* this error should be checked. */
-	if (sk->state == TCP_LISTEN) return (-ENOTCONN);
+	if (sk->state == TCP_LISTEN)
+		return (-ENOTCONN);
 
+	/* 获取urgent数据 */
 	/* urgent data needs to be handled specially. */
 	if ((flags & MSG_OOB))
 		return (tcp_read_urg (sk, to, len, flags));
@@ -810,28 +812,27 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 
 	while ( len > 0)
 	{
-		PRINTK("tcp_read (sk=%X, to=%X, len=%d, nonblock=%d, flags=%X)\n",
-				sk, to, len, nonblock, flags);
-		while ( skb == NULL || before (sk->copied_seq+1, skb->h.th->seq) ||
-				skb->used) /* skb->used just checks to see if we've
-					      gone all the way around. */
-		{
+		PRINTK("tcp_read (sk=%X, to=%X, len=%d, nonblock=%d, flags=%X)\n", sk, to, len, nonblock, flags);
 
+		/* skb->used just checks to see if we've gone all the way around. */
+		while (skb == NULL || before (sk->copied_seq+1, skb->h.th->seq) || skb->used)
+		{
 			PRINTK("skb = %X:\n",skb);
 			print_skb(skb);
 			print_sk (sk);
 
+			/* TODO: 在这里清空之后，如果之后的报文没有读取，该如何获得？ */
 			cleanup_rbuf(sk);
 
 			if (nonblock || ((flags & MSG_PEEK) && copied))
 			{
 				release_sock (sk);
-				if (copied) return (copied);
+				if (copied)
+					return (copied);
 				return (-EAGAIN);
 			}
 
 			release_sock (sk); /* now we may have some data waiting. */
-
 
 			PRINTK ("tcp_read about to sleep. state = %d\n",sk->state);
 			cli();
@@ -849,8 +850,7 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 				return (-ENOTCONN);
 			}
 
-			if ( sk->rqueue == NULL ||
-					before (sk->copied_seq+1, sk->rqueue->next->h.th->seq))
+			if ( sk->rqueue == NULL || before (sk->copied_seq+1, sk->rqueue->next->h.th->seq))
 			{
 				interruptible_sleep_on (sk->sleep);
 				if (current->signal & ~current->blocked)
@@ -869,19 +869,17 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 				skb=sk->rqueue->next;
 			else
 				skb = NULL;
-
 		}
 
-		/* Copy anything from the current block that needs to go
-		   into the user buffer. */
+		/* Copy anything from the current block that needs to go into the user buffer. */
+		/* 获取要拷贝到用户态的数据在skb中的偏移量 */
+		offset = sk->copied_seq + 1 - skb->h.th->seq;
 
-		offset = sk->copied_seq+1 - skb->h.th->seq;
-
-		if (skb->h.th->syn) offset --;
-		if (offset < skb->len )
+		if (skb->h.th->syn)
+			offset --;
+		if (offset < skb->len)
 		{
-			/* if there is urgent data we must either return or skip
-			   over it. */
+			/* if there is urgent data we must either return or skip over it. */
 			if (skb->h.th->urg)
 			{
 				if (skb->urg_used)
@@ -904,26 +902,21 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 			used = min(skb->len - offset, len);
 
 			verify_area (to, used);
-			memcpy_tofs(to, ((unsigned char *)skb->h.th) +
-					skb->h.th->doff*4 +
-					offset,
-					used);
+			memcpy_tofs(to, ((unsigned char *)skb->h.th) + skb->h.th->doff*4 + offset, used);
 			copied += used;
 			len -= used;
 			to += used;
+			/* 如果不是peek模式，需要更新used */
 			if (!(flags & MSG_PEEK))
 				sk->copied_seq += used;
 
 			/* mark this data used if we are really reading it, and if
 			   it doesn't contain any urgent data. And we have used all
 			   the data. */
-			if (!(flags & MSG_PEEK) &&
-					(!skb->h.th->urg || skb->urg_used) &&
-					(used + offset >= skb->len) )
+			if (!(flags & MSG_PEEK) && (!skb->h.th->urg || skb->urg_used) && (used + offset >= skb->len) )
 				skb->used = 1;
 
-			/* see if this is the end of a message or if the remaining data
-			   is urgent. */
+			/* see if this is the end of a message or if the remaining data is urgent. */
 			if ( skb->h.th->psh || skb->h.th->urg)
 			{
 				break;
@@ -937,7 +930,8 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 	}
 	cleanup_rbuf (sk);
 	release_sock (sk);
-	if (copied == 0 && nonblock) return (-EAGAIN);
+	if (copied == 0 && nonblock)
+		return (-EAGAIN);
 	return (copied);
 }
 
@@ -1203,146 +1197,142 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 static  void
 tcp_close (volatile struct sock *sk, int timeout)
 {
-  /* we need to grab some memory, and put together a fin, and then
-     put it into the queue to be sent. */
-  struct sk_buff *buff;
-  int need_reset = 0;
-  struct tcp_header *t1,*th;
-  struct proto *prot;
-  struct device *dev=NULL;
-  int tmp;
-  PRINTK ("tcp_close ((struct sock *)%X, %d)\n",sk, timeout);
-  sk->inuse = 1;
-  sk->keepopen = 0;
-  sk->shutdown = SHUTDOWN_MASK;
+	/* we need to grab some memory, and put together a fin, and then
+	   put it into the queue to be sent. */
+	struct sk_buff *buff;
+	int need_reset = 0;
+	struct tcp_header *t1,*th;
+	struct proto *prot;
+	struct device *dev=NULL;
+	int tmp;
+	PRINTK ("tcp_close ((struct sock *)%X, %d)\n",sk, timeout);
+	sk->inuse = 1;
+	sk->keepopen = 0;
+	sk->shutdown = SHUTDOWN_MASK;
 
-  if (!sk->dead)
-    wake_up (sk->sleep);
-
-
-  /* we need to flush the recv. buffs. */
-  
-  if (sk->rqueue != NULL)
-    {
-       struct sk_buff *skb;
-       struct sk_buff *skb2;
-       skb = sk->rqueue;
-       do {
-	  skb2=skb->next;
-	  free_skb (skb, FREE_READ);
-	  skb=skb2;
-       } while (skb != sk->rqueue);
-       need_reset = 1;
-    }
-  sk->rqueue = NULL;
+	if (!sk->dead)
+		wake_up (sk->sleep);
 
 
-  switch (sk->state)
-    {
-      case TCP_FIN_WAIT1:
-      case TCP_FIN_WAIT2:
-      case TCP_LAST_ACK:
-       if (timeout)
-	 tcp_time_wait(sk);
-       release_sock (sk);
-       if (!need_reset)
-	 return;
-       break;
+	/* we need to flush the recv. buffs. */
 
-      case TCP_TIME_WAIT:
-       if (timeout)
-	 sk->state = TCP_CLOSE;
-       release_sock (sk);
-       return;
-
-      case TCP_LISTEN:
-       sk->state = TCP_CLOSE;
-       release_sock(sk);
-       return;
-
-      case TCP_CLOSE:
-
-       release_sock(sk);
-       return;
-       
-
-    case TCP_ESTABLISHED:
-    case TCP_SYN_SENT:
-    case TCP_SYN_RECV:
-
-      prot = (struct proto *)sk->prot;
-      th=(struct tcp_header *)&sk->dummy_th;
-
-       buff=prot->wmalloc(sk, MAX_FIN_SIZE,1);
-       if (buff == NULL)
-	 {
-	    /* this will force it to try again later. */
-	    sk->state = TCP_ESTABLISHED;
-	    sk->timeout = TIME_CLOSE;
-	    sk->time_wait.len = 100; /* wait a second. */
-	    reset_timer ((struct timer *)&sk->time_wait);
-	    return;
-	 }
-
-      buff->mem_addr = buff;
-      buff->mem_len = MAX_FIN_SIZE;
-      buff->sk = sk;
-      buff->len = sizeof (*t1);
-      t1=(struct tcp_header *)(buff + 1);
-      /* put in the ip_header and routing stuff. */
-      tmp = prot->build_header (buff,sk->saddr, sk->daddr, &dev,
-				IP_TCP, sk->opt,
-				sizeof(struct tcp_header));
-      if (tmp < 0)
+	if (sk->rqueue != NULL)
 	{
-	  prot->wfree (sk,buff->mem_addr, buff->mem_len);
-	  PRINTK ("Unable to build header for fin.\n");
-	  release_sock(sk);
-	  return;
+		struct sk_buff *skb;
+		struct sk_buff *skb2;
+		skb = sk->rqueue;
+		do {
+			skb2=skb->next;
+			free_skb (skb, FREE_READ);
+			skb=skb2;
+		} while (skb != sk->rqueue);
+		need_reset = 1;
 	}
-      t1 = (struct tcp_header *)((char *)t1 +tmp);
-      buff ->len += tmp;
-      buff->dev = dev;
-      memcpy (t1, th, sizeof (*t1));
-      t1->seq = net32(sk->send_seq);
-      sk->send_seq++;
-      buff->h.seq = sk->send_seq;
-      t1->ack = 1;
-       /* ack everything immediately from now on. */
-      sk->delay_acks = 0;
-      t1->ack_seq = net32(sk->acked_seq);
-      t1->window = net16(sk->prot->rspace(sk));
-      t1->fin = 1;
-      t1->rst = need_reset;
-      t1->doff = sizeof (*t1)/4;
-      tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
+	sk->rqueue = NULL;
 
-      if (sk->wfront == NULL)
+
+	switch (sk->state)
 	{
-	  prot->queue_xmit(sk, dev, buff, 0);
+		case TCP_FIN_WAIT1:
+		case TCP_FIN_WAIT2:
+		case TCP_LAST_ACK:
+			if (timeout)
+				tcp_time_wait(sk);
+			release_sock (sk);
+			if (!need_reset)
+				return;
+			break;
+
+		case TCP_TIME_WAIT:
+			if (timeout)
+				sk->state = TCP_CLOSE;
+			release_sock (sk);
+			return;
+
+		case TCP_LISTEN:
+			sk->state = TCP_CLOSE;
+			release_sock(sk);
+			return;
+
+		case TCP_CLOSE:
+			release_sock(sk);
+			return;
+
+		case TCP_ESTABLISHED:
+		case TCP_SYN_SENT:
+		case TCP_SYN_RECV:
+			prot = (struct proto *)sk->prot;
+			th=(struct tcp_header *)&sk->dummy_th;
+
+			buff=prot->wmalloc(sk, MAX_FIN_SIZE,1);
+			if (buff == NULL)
+			{
+				/* this will force it to try again later. */
+				sk->state = TCP_ESTABLISHED;
+				sk->timeout = TIME_CLOSE;
+				sk->time_wait.len = 100; /* wait a second. */
+				reset_timer ((struct timer *)&sk->time_wait);
+				return;
+			}
+
+			buff->mem_addr = buff;
+			buff->mem_len = MAX_FIN_SIZE;
+			buff->sk = sk;
+			buff->len = sizeof (*t1);
+			t1=(struct tcp_header *)(buff + 1);
+			/* put in the ip_header and routing stuff. */
+			tmp = prot->build_header (buff,sk->saddr, sk->daddr, &dev,
+					IP_TCP, sk->opt,
+					sizeof(struct tcp_header));
+			if (tmp < 0)
+			{
+				prot->wfree (sk,buff->mem_addr, buff->mem_len);
+				PRINTK ("Unable to build header for fin.\n");
+				release_sock(sk);
+				return;
+			}
+			t1 = (struct tcp_header *)((char *)t1 +tmp);
+			buff ->len += tmp;
+			buff->dev = dev;
+			memcpy (t1, th, sizeof (*t1));
+			t1->seq = net32(sk->send_seq);
+			sk->send_seq++;
+			buff->h.seq = sk->send_seq;
+			t1->ack = 1;
+			/* ack everything immediately from now on. */
+			sk->delay_acks = 0;
+			t1->ack_seq = net32(sk->acked_seq);
+			t1->window = net16(sk->prot->rspace(sk));
+			t1->fin = 1;
+			t1->rst = need_reset;
+			t1->doff = sizeof (*t1)/4;
+			tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (*t1), sk);
+
+			if (sk->wfront == NULL)
+			{
+				prot->queue_xmit(sk, dev, buff, 0);
+			}
+			else
+			{
+				sk->time_wait.len = sk->rtt;
+				sk->timeout = TIME_WRITE;
+				reset_timer ((struct timer *)&sk->time_wait);
+				buff->next = NULL;
+				if (sk->wback == NULL)
+				{
+					sk->wfront=buff;
+				}
+				else
+				{
+					sk->wback->next = buff;
+				}
+				sk->wback = buff;
+
+			}
+			sk->state = TCP_FIN_WAIT1;
 	}
-      else
-	{
-	   sk->time_wait.len = sk->rtt;
-	   sk->timeout = TIME_WRITE;
-	   reset_timer ((struct timer *)&sk->time_wait);
-	   buff->next = NULL;
-	   if (sk->wback == NULL)
-	     {
-		sk->wfront=buff;
-	     }
-	   else
-	     {
-		sk->wback->next = buff;
-	     }
-	   sk->wback = buff;
-	   
-	}
-      sk->state = TCP_FIN_WAIT1;
-    }
-  release_sock (sk);
+	release_sock (sk);
 }
-
 
 /* This routine takes stuff off of the write queue, and puts it in the xmit queue. */
 static  void
@@ -1360,8 +1350,6 @@ tcp_write_xmit (volatile struct sock *sk)
 	}
 }
 
-
-
 /* This routine deals with incoming acks, but not outgoing ones. */
 /*
  * 处理收到的ack 报文
@@ -1370,6 +1358,7 @@ tcp_write_xmit (volatile struct sock *sk)
  * 1	正常.
  */
 
+/* TODO: next... */
 static  int
 tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 {
@@ -1459,7 +1448,6 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 			break;
 		}
 	}
-
 
 	/* at this point we need to check to see if we have anything
 	   which needs to be retransmiteed.  If we have failed to get
@@ -1645,6 +1633,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	if (th->syn) th->ack_seq ++;
 	if (th->fin) th->ack_seq ++;
 
+	/* 首先将数据copy到用户态再回复ACK */
 	if (before (sk->acked_seq, sk->copied_seq))
 	{
 		printk ("*** tcp.c:tcp_data bug acked < copied\n");

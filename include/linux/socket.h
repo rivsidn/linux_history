@@ -34,6 +34,7 @@ struct sockaddr {
 
 /* flags we can use with send/ and recv. */
 #define MSG_OOB		1
+/* 偷看一看，并不将数据从缓冲队列中删除 */
 #define MSG_PEEK	2
 
 /* for setsockoptions */

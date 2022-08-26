@@ -31,11 +31,12 @@ struct sock
 {
 	struct options *opt;
 	unsigned long wmem_alloc;
+	/* 接收报文的总长度，tcp_rcv()时候增加，sock_rfree()时释放 */
 	unsigned long rmem_alloc;
 	/*
 	 * send_seq	本机发送的序列号
 	 * acked_seq	本机发送的回复序列号
-	 * copied_seq	TODO
+	 * copied_seq	拷贝到用户态的序列号
 	 * rcv_ack_seq	收到对端回复的ack序列号
 	 * window_seq	对端回复的ack+对端的window号，既是本端可以发送的序号大小
 	 * fin_seq	结束时需要确认的序列号
@@ -76,8 +77,14 @@ struct sock
 	struct wait_queue **sleep;
 	unsigned long daddr;
 	unsigned long saddr;
+	/*
+	 * 最大没回复ACK的报文字节数，ACK并不是一个报文回复一次，bytes_rcv 超过max_unacked时
+	 * 必须要回复ACK报文。
+	 */
 	unsigned short max_unacked;
+	/* 本地窗口大小 */
 	unsigned short window;
+	/* 接收到本地的字节数 */
 	unsigned short bytes_rcv;
 	/* 此处mtu 是TCP 数据长度 */
 	unsigned short mtu;
@@ -88,6 +95,7 @@ struct sock
 	 */
 	unsigned short cong_window;
 	unsigned short packets_out;
+	/* urg 报文个数 */
 	unsigned short urg;
 	unsigned short shutdown;
 	short rtt;
@@ -180,9 +188,11 @@ struct sk_buff
 	unsigned long daddr;		//目的IP地址
 	/*
 	 * acked	报文已经回复了ACK
+	 * used		数据包已经读取到用户态
 	 * free		驱动发送报文之后并不立即释放，由协议层释放。
 	 * 		仅TCP会出现free为0的情况，报文发送之后，需要收到ACK才能释放。
 	 * arp		报文不会加入arp等待队列
+	 * urg_used	已经获取了urg 数据
 	 */
 	unsigned long acked:1,used:1,free:1,arp:1, urg_used:1, lock:1;
 };

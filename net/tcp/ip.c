@@ -806,7 +806,7 @@ ip_queue_xmit (volatile struct sock *sk, struct device *dev,
 			sk->send_tail = skb;
 		}
 		sti();
-		/* 设置定时器，如果超时则重传 */
+		/* 设置重传定时器，如果超时则重传 */
 		sk->time_wait.len = sk->rtt*2;
 		sk->timeout=TIME_WRITE;
 		reset_timer ((struct timer *)&sk->time_wait);
