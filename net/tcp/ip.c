@@ -793,7 +793,7 @@ ip_queue_xmit (volatile struct sock *sk, struct device *dev,
 		 * 将skb添加到队列中，是一个通过skb{}->link3链接起来的单向链表，
 		 * send_tail指向链表的尾部，send_head 指向链表的头部.
 		 *
-		 * 不立即释放的报文，在tcp_ack()中释放.
+		 * 不立即释放的报文，在tcp_ack()中释放，加入链表过程中没有排序.
 		 */
 		if (sk->send_tail == NULL)
 		{

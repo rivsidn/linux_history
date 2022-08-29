@@ -776,7 +776,7 @@ sys_getsockopt (int fd, int level, int optname, char *optval, int *optlen)
 
 }
 
-
+/* 关闭全双工连接的一部分 */
 static int
 sys_shutdown( int fd, int how)
 {

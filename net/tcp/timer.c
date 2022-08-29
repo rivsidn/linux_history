@@ -259,6 +259,7 @@ net_timer (void)
 				reset_timer ((struct timer *)&sk->time_wait);
 
 			case TIME_KEEPOPEN: /* send something to keep the connection open. */
+				/* 表示发送探测报文的次数 */
 				sk->retransmits ++;
 				if (sk->retransmits > TCP_RETR1)
 				{
