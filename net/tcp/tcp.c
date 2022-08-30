@@ -1060,6 +1060,7 @@ tcp_conn_request(volatile struct sock *sk, struct sk_buff *skb,
 	newsk->state = TCP_SYN_RECV;		//此处修改了sock状态
 	newsk->timeout = 0;
 	newsk->send_seq = timer_seq * SEQ_TICK - seq_offset;
+	/* TODO: 为什么这里初始化成send_seq？ */
 	newsk->rcv_ack_seq = newsk->send_seq;
 	newsk->urg =0;
 	newsk->retransmits = 0;
@@ -1499,6 +1500,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	{
 		if (!sk->dead)
 			wake_up (sk->sleep);
+		/* TODO: 这些判断？ */
 		if (sk->rcv_ack_seq == sk->send_seq && sk->acked_seq == sk->fin_seq)
 		{
 			sk->state = TCP_CLOSE;
@@ -1507,6 +1509,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 
 	if (sk->state == TCP_FIN_WAIT1)
 	{
+		/* TODO: 这些判断？ */
 		if (sk->rcv_ack_seq == sk->send_seq)
 			sk->state = TCP_FIN_WAIT2;
 	}
@@ -1744,8 +1747,7 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	return (0);
 }
 
-/* TODO: next... */
-static  int
+static int
 tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 {
 	extern int kill_pg (int pg, int sig, int priv);
@@ -1762,6 +1764,15 @@ tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 		return (0);
 	}
 
+	/*
+	 * 递增urq，统计收到的紧急数据包。
+	 * if (!sk->urg) 用于第一次收到紧急数据包的时候，发送信号到用户态，
+	 * 由于初始化成0 ，递增之后可能进不去，认为合理的写法应该是:
+	 * if (!sk->urq++)
+	 * {
+	 * 	//...
+	 * }
+	 */
 	sk->urg++;
 
 	if (!sk->urg)
@@ -1783,7 +1794,8 @@ tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 }
 
 /* this deals with incoming fins. */
-static  int
+/* 处理收到的fins报文 */
+static int
 tcp_fin (volatile struct sock *sk, struct tcp_header *th, 
 	 unsigned long saddr, struct device *dev)
 {
@@ -1882,12 +1894,14 @@ tcp_fin (volatile struct sock *sk, struct tcp_header *th,
 	/* can't just queue this up.  It should go at the end of the write queue. */
 	if (sk->wback != NULL)
 	{
+		/* 排队 */
 		buff->next = NULL;
 		sk->wback->next = buff;
 		sk->wback = buff;
 	}
 	else
 	{
+		/* 直接发送 */
 		sk->prot->queue_xmit (sk, dev, buff,0);
 	}
 
@@ -1967,10 +1981,12 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 	if (sin.sin_family && sin.sin_family != AF_INET) return (-EAFNOSUPPORT);
 
 	sk->daddr = sin.sin_addr.s_addr;
+	sk->dummy_th.dest = sin.sin_port;
+	/* 初始化发送序列号 */
 	sk->send_seq = timer_seq*SEQ_TICK-seq_offset;
+	/* TODO: 为什么这里初始化成sk->send_seq-1 */
 	sk->rcv_ack_seq = sk->send_seq -1;
 	sk->err = 0;
-	sk->dummy_th.dest = sin.sin_port;
 
 	buff=sk->prot->wmalloc(sk,MAX_SYN_SIZE,0);
 	if (buff == NULL) 
@@ -2017,16 +2033,15 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 	ptr[2]=(dev->mtu- HEADER_SIZE) >> 8;
 	ptr[3]=(dev->mtu- HEADER_SIZE) & 0xff;
 	sk->mtu = dev->mtu - HEADER_SIZE;
-	tcp_send_check (t1, sk->saddr, sk->daddr,
-			sizeof (struct tcp_header) + 4, sk);
-	/* this must go first otherwise a really quick response will
-	   get reset. */
+	tcp_send_check (t1, sk->saddr, sk->daddr, sizeof (struct tcp_header) + 4, sk);
+	/* this must go first otherwise a really quick response will get reset. */
 	sk->state = TCP_SYN_SENT;
 
 	sk->prot->queue_xmit(sk, dev, buff, 0);
 
 	sk->time_wait.len = TCP_CONNECT_TIME;
 	reset_timer ((struct timer *)&sk->time_wait);
+	/* syn包允许重发多次，不会导致断开连接 */
 	sk->retransmits = TCP_RETR1 - TCP_SYN_RETRIES;
 	release_sock (sk);
 	return (0);
@@ -2058,6 +2073,7 @@ tcp_sequence (volatile struct sock *sk, struct tcp_header *th, short len,
 	/* if it's too far ahead, send an ack to let the other end know what we expect. */
 	if (after (th->seq, sk->acked_seq + sk->window))
 	{
+		/* 其实就是用于同步 */
 		tcp_send_ack (sk->send_seq, sk->acked_seq, sk, th, saddr);
 		return (0);
 	}
@@ -2159,7 +2175,7 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 		cli();
 
 		/* we may need to add it to the backlog here. */
-		/* 添加报文到缓冲队列中 */
+		/* 添加报文到back_log双向队列中 */
 		if (sk->inuse)
 		{
 			if (sk->back_log == NULL)
@@ -2182,6 +2198,10 @@ tcp_rcv(struct sk_buff *skb, struct device *dev, struct options *opt,
 		sti();
 	}
 
+	/*
+	 * 检查缓冲区长度.
+	 * back_log可以理解成是IP层，到此时才是真正的到TCP层.
+	 */
 	/* charge the memory to the socket. */
 	if (sk->rmem_alloc + skb->mem_len >= SK_RMEM_MAX)
 	{
@@ -2539,7 +2559,7 @@ tcp_write_wakeup(volatile struct sock *sk)
 	memcpy (t1,(void *) &sk->dummy_th, sizeof (*t1));
 
 	/* use a previous sequence.  This should cause the other end to send an ack. */
-	t1->seq = net32(sk->send_seq-1);
+	t1->seq = net32(sk->send_seq-1);	//使用了一个之前的序列号
 	t1->ack = 1; 
 	t1->res1= 0;
 	t1->res2= 0;

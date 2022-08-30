@@ -813,8 +813,7 @@ ip_proto_create (struct socket *sock, int protocol)
 
 	sk->max_ack_backlog = MAX_ACK_BACKLOG;
 	sk->inuse = 0;
-	sk->delay_acks = 1; /* default to waiting a while before sending
-			       acks.  */
+	sk->delay_acks = 1; /* default to waiting a while before sending acks.  */
 	sk->wback = NULL;
 	sk->wfront = NULL;
 	sk->rqueue = NULL;
