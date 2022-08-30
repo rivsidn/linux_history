@@ -679,7 +679,8 @@ cleanup_rbuf (volatile struct sock *sk)
 	{
 		struct sk_buff *skb;
 		skb=sk->rqueue->next;
-		if (!skb->used) break;
+		if (!skb->used)
+			break;
 		if (sk->rqueue == skb)
 		{
 			sk->rqueue = NULL;
@@ -821,7 +822,7 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 			print_skb(skb);
 			print_sk (sk);
 
-			/* TODO: 在这里清空之后，如果之后的报文没有读取，该如何获得？ */
+			/* 只释放了used报文 */
 			cleanup_rbuf(sk);
 
 			if (nonblock || ((flags & MSG_PEEK) && copied))
@@ -913,7 +914,7 @@ tcp_read(volatile struct sock *sk, unsigned char *to,
 			/* mark this data used if we are really reading it, and if
 			   it doesn't contain any urgent data. And we have used all
 			   the data. */
-			if (!(flags & MSG_PEEK) && (!skb->h.th->urg || skb->urg_used) && (used + offset >= skb->len) )
+			if (!(flags & MSG_PEEK) && (!skb->h.th->urg || skb->urg_used) && (used + offset >= skb->len))
 				skb->used = 1;
 
 			/* see if this is the end of a message or if the remaining data is urgent. */
@@ -1500,7 +1501,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 	{
 		if (!sk->dead)
 			wake_up (sk->sleep);
-		/* TODO: 这些判断？ */
+		/* 本端发送的被对端确认 并且 对端发送的fin由本端确认 */
 		if (sk->rcv_ack_seq == sk->send_seq && sk->acked_seq == sk->fin_seq)
 		{
 			sk->state = TCP_CLOSE;
@@ -1509,7 +1510,7 @@ tcp_ack (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 
 	if (sk->state == TCP_FIN_WAIT1)
 	{
-		/* TODO: 这些判断？ */
+		/* 本端发送的被对端确认 */
 		if (sk->rcv_ack_seq == sk->send_seq)
 			sk->state = TCP_FIN_WAIT2;
 	}
@@ -1981,12 +1982,12 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 	sk->dummy_th.dest = sin.sin_port;
 	/* 初始化发送序列号 */
 	sk->send_seq = timer_seq*SEQ_TICK-seq_offset;
-	/* TODO: 为什么这里初始化成sk->send_seq-1 */
+	/* TODO: 为什么这里初始化成sk->send_seq-1？ 主动发起连接 */
 	sk->rcv_ack_seq = sk->send_seq -1;
 	sk->err = 0;
 
 	buff=sk->prot->wmalloc(sk,MAX_SYN_SIZE,0);
-	if (buff == NULL) 
+	if (buff == NULL)
 	{
 		return (-ENOMEM);
 	}
@@ -1997,8 +1998,7 @@ tcp_connect (volatile struct sock *sk, struct sockaddr_in *usin, int addr_len)
 	buff->sk = sk;
 	t1=(struct tcp_header *)(buff + 1);
 	/* put in the ip_header and routing stuff. */
-	/* We need to build the routing stuff fromt the things saved
-	   in skb. */
+	/* We need to build the routing stuff fromt the things saved in skb. */
 	tmp = sk->prot->build_header (buff, sk->saddr, sk->daddr, &dev,
 			IP_TCP, NULL, MAX_SYN_SIZE);
 	if (tmp < 0)
