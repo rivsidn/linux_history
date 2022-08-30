@@ -1657,15 +1657,12 @@ tcp_data (struct sk_buff *skb, volatile struct sock *sk,
 	}
 
 	/* now figure out if we can ack anything. */
-	/* TODO: 没明白这里的判断？ */
 	/*
 	 * skb1 何时为空？
 	 * 1> rqueue中只有skb一个报文
 	 * 2> skb是rqueue中序列号最小的报文
 	 *
 	 * skb1 序列号小于skb.
-	 *
-	 * 何时skb1->acked 为 0 呢？
 	 */
 	if (skb1 == NULL || skb1->acked || before (th->seq, sk->acked_seq+1))
 	{
@@ -1794,7 +1791,7 @@ tcp_urg (volatile struct sock *sk, struct tcp_header *th, unsigned long saddr)
 }
 
 /* this deals with incoming fins. */
-/* 处理收到的fins报文 */
+/* 处理收到的fin报文 */
 static int
 tcp_fin (volatile struct sock *sk, struct tcp_header *th, 
 	 unsigned long saddr, struct device *dev)
