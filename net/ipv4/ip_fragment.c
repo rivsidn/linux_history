@@ -418,6 +418,9 @@ out_fail:
 	return NULL;
 }
 
+/*
+ * 处理收到的分片包，重组成功，返回重组之后的skb.
+ */
 /* Process an incoming IP datagram fragment. */
 struct sk_buff *ip_defrag(struct sk_buff *skb)
 {

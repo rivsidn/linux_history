@@ -10,12 +10,11 @@ struct ip_conntrack_helper
 	/* Internal use. */
 	struct list_head list;
 
-	/* Returns TRUE if it wants to help this connection (tuple is
-           the tuple of REPLY packets from server). */
+	/* Returns TRUE if it wants to help this connection (tuple is the tuple of REPLY packets from server). */
 	int (*will_help)(const struct ip_conntrack_tuple *rtuple);
 
-	/* Function to call when data passes; return verdict, or -1 to
-           invalidate. */
+	/* 报文经过的时候数据处理函数 */
+	/* Function to call when data passes; return verdict, or -1 to invalidate. */
 	int (*help)(const struct iphdr *, size_t len,
 		    struct ip_conntrack *ct,
 		    enum ip_conntrack_info conntrackinfo);

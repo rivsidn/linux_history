@@ -168,8 +168,7 @@ extern inline void proc_net_remove(const char *name)
 #else
 
 extern inline int proc_register(struct proc_dir_entry *a, struct proc_dir_entry *b) { return 0; }
-extern inline struct proc_dir_entry *proc_net_create(const char *name, mode_t mode, 
-	get_info_t *get_info) {return NULL;}
+extern inline struct proc_dir_entry *proc_net_create(const char *name, mode_t mode, get_info_t *get_info) {return NULL;}
 extern inline void proc_net_remove(const char *name) {}
 
 extern inline struct proc_dir_entry *create_proc_entry(const char *name,

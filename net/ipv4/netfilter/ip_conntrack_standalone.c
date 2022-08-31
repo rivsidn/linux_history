@@ -121,6 +121,7 @@ conntrack_iterate(const struct ip_conntrack_tuple_hash *hash,
 	return 0;
 }
 
+/* proc文件输出 */
 static int
 list_conntracks(char *buffer, char **start, off_t offset, int length)
 {
@@ -161,6 +162,7 @@ list_conntracks(char *buffer, char **start, off_t offset, int length)
 	return len;
 }
 
+/* 报文进入链接跟踪之后分片包需要做重组，此处需要重新分片 */
 static unsigned int ip_refrag(unsigned int hooknum,
 			      struct sk_buff **pskb,
 			      const struct net_device *in,
@@ -175,6 +177,7 @@ static unsigned int ip_refrag(unsigned int hooknum,
 	if ((*pskb)->len > rt->u.dst.pmtu) {
 		DEBUGP("ip_conntrack: refragm %p (size %u) to %u (okfn %p)\n",
 		       *pskb, (*pskb)->len, rt->u.dst.pmtu, okfn);
+		/* 报文分片，分片之后调用okfn将报文直接发送出去 */
 		/* No hook can be after us, so this should be OK. */
 		ip_fragment(*pskb, okfn);
 		return NF_STOLEN;
@@ -182,18 +185,18 @@ static unsigned int ip_refrag(unsigned int hooknum,
 	return NF_ACCEPT;
 }
 
-/* Connection tracking may drop packets, but never alters them, so
-   make it the first hook. */
+/* Connection tracking may drop packets, but never alters them, so make it the first hook. */
+/* 进入设备的报文 */
 static struct nf_hook_ops ip_conntrack_in_ops
-= { { NULL, NULL }, ip_conntrack_in, PF_INET, NF_IP_PRE_ROUTING,
-	NF_IP_PRI_CONNTRACK };
+= { { NULL, NULL }, ip_conntrack_in, PF_INET, NF_IP_PRE_ROUTING, NF_IP_PRI_CONNTRACK };
+/* 设备发出的报文 */
 static struct nf_hook_ops ip_conntrack_local_out_ops
-= { { NULL, NULL }, ip_conntrack_in, PF_INET, NF_IP_LOCAL_OUT,
-	NF_IP_PRI_CONNTRACK };
+= { { NULL, NULL }, ip_conntrack_in, PF_INET, NF_IP_LOCAL_OUT, NF_IP_PRI_CONNTRACK };
 /* Refragmenter; last chance. */
 static struct nf_hook_ops ip_conntrack_out_ops
 = { { NULL, NULL }, ip_refrag, PF_INET, NF_IP_POST_ROUTING, NF_IP_PRI_LAST };
 
+/* 注册链接跟踪钩子函数 */
 static int init_or_cleanup(int init)
 {
 	int ret = 0;
@@ -236,8 +239,7 @@ static int init_or_cleanup(int init)
 	return ret;
 }
 
-/* FIXME: Allow NULL functions and sub in pointers to generic for
-   them. --RR */
+/* FIXME: Allow NULL functions and sub in pointers to generic for them. --RR */
 int ip_conntrack_protocol_register(struct ip_conntrack_protocol *proto)
 {
 	int ret = 0;
@@ -245,8 +247,7 @@ int ip_conntrack_protocol_register(struct ip_conntrack_protocol *proto)
 
 	WRITE_LOCK(&ip_conntrack_lock);
 	for (i = protocol_list.next; i != &protocol_list; i = i->next) {
-		if (((struct ip_conntrack_protocol *)i)->proto
-		    == proto->proto) {
+		if (((struct ip_conntrack_protocol *)i)->proto == proto->proto) {
 			ret = -EBUSY;
 			goto out;
 		}

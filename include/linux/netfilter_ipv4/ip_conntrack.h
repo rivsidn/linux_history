@@ -9,20 +9,23 @@
 enum ip_conntrack_info
 {
 	/* Part of an established connection (either direction). */
+	/* 任意方向的链接已建立 */
 	IP_CT_ESTABLISHED,
 
-	/* Like NEW, but related to an existing connection, or ICMP error
-	   (in either direction). */
+	/* Like NEW, but related to an existing connection, or ICMP error (in either direction). */
+	/* 与NEW 相同，但是与一个已经存在的链接有联系 */
 	IP_CT_RELATED,
 
-	/* Started a new connection to track (only
-           IP_CT_DIR_ORIGINAL); may be a retransmission. */
+	/* Started a new connection to track (only IP_CT_DIR_ORIGINAL); may be a retransmission. */
+	/* 开启一个新的链接 */
 	IP_CT_NEW,
 
 	/* >= this indicates reply direction */
+	/* >= 该选项表示是回复方向 */
 	IP_CT_IS_REPLY,
 
 	/* Number of distinct IP_CT types (no NEW in reply dirn). */
+	/* 状态的个数，NEW没有返回方向的状态 */
 	IP_CT_NUMBER = IP_CT_IS_REPLY * 2 - 1
 };
 

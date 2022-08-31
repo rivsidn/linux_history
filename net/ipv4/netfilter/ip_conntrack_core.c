@@ -254,6 +254,7 @@ int icmp_error_track(struct sk_buff *skb)
 	const struct iphdr *iph = skb->nh.iph;
 	struct icmphdr *hdr = (struct icmphdr *)((u_int32_t *)iph + iph->ihl);
 	struct ip_conntrack_tuple innertuple, origtuple;
+	/* 内部的ip头 */
 	struct iphdr *inner = (struct iphdr *)(hdr + 1);
 	size_t datalen = skb->len - iph->ihl*4 - sizeof(*hdr);
 	struct ip_conntrack_protocol *innerproto;
@@ -275,6 +276,7 @@ int icmp_error_track(struct sk_buff *skb)
 	    && hdr->type != ICMP_REDIRECT)
 		return 0;
 
+	/* 忽略错误的校验和 */
 	/* Ignore it if the checksum's bogus. */
 	if (ip_compute_csum((unsigned char *)hdr, sizeof(*hdr) + datalen)) {
 		DEBUGP("icmp_error_track: bad csum\n");
@@ -283,26 +285,26 @@ int icmp_error_track(struct sk_buff *skb)
 
 	innerproto = find_proto(inner->protocol);
 	/* Are they talking about one of our connections? */
-	if (inner->ihl * 4 + 8 > datalen
-	    || !get_tuple(inner, datalen, &origtuple, innerproto)) {
+	if (inner->ihl * 4 + 8 > datalen || !get_tuple(inner, datalen, &origtuple, innerproto)) {
 		DEBUGP("icmp_error: ! get_tuple p=%u (%u*4+%u dlen=%u)\n",
 		       inner->protocol, inner->ihl, 8,
 		       datalen);
 		return 1;
 	}
 
-	/* Ordinarily, we'd expect the inverted tupleproto, but it's
-	   been preserved inside the ICMP. */
+	/* Ordinarily, we'd expect the inverted tupleproto, but it's been preserved inside the ICMP. */
 	if (!invert_tuple(&innertuple, &origtuple, innerproto)) {
 		DEBUGP("icmp_error_track: Can't invert tuple\n");
 		return 1;
 	}
+	/* ICMP是回来的报文，所以查找的是反向的元组 */
 	h = ip_conntrack_find_get(&innertuple, NULL);
 	if (!h) {
 		DEBUGP("icmp_error_track: no match\n");
 		return 1;
 	}
 
+	/* 设置状态 */
 	ctinfo = IP_CT_RELATED;
 	if (DIRECTION(h) == IP_CT_DIR_REPLY)
 		ctinfo += IP_CT_IS_REPLY;
@@ -387,6 +389,7 @@ init_conntrack(const struct ip_conntrack_tuple *tuple,
 		kfree(conntrack);
 		return 0;
 	}
+	/* 寻找对应的helper结构体 */
 	conntrack->helper = LIST_FIND(&helpers, helper_cmp,
 				      struct ip_conntrack_helper *,
 				      &repl_tuple);
@@ -432,6 +435,7 @@ resolve_normal_ct(struct sk_buff *skb)
 
 	/* Loop around search/insert race */
 	do {
+		/* 查找，查找不到则创建 */
 		/* look for tuple match */
 		h = ip_conntrack_find_get(&tuple, NULL);
 		if (!h && init_conntrack(&tuple, proto, skb))
@@ -471,9 +475,9 @@ ip_conntrack_get(struct sk_buff *skb, enum ip_conntrack_info *ctinfo)
 			resolve_normal_ct(skb);
 	}
 
+	/* 更新链接跟踪状态 */
 	if (skb->nfct) {
-		struct ip_conntrack *ct
-			= (struct ip_conntrack *)skb->nfct->master;
+		struct ip_conntrack *ct = (struct ip_conntrack *)skb->nfct->master;
 
 		/* ctinfo is the index of the nfct inside the conntrack */
 		*ctinfo = skb->nfct - ct->infos;
@@ -498,12 +502,12 @@ unsigned int ip_conntrack_in(unsigned int hooknum,
 	/* FIXME: Do this right please. --RR */
 	(*pskb)->nfcache |= NFC_UNKNOWN;
 
-	/* Previously seen (loopback)?  Ignore.  Do this before
-           fragment check. */
+	/* Previously seen (loopback)?  Ignore.  Do this before fragment check. */
 	if ((*pskb)->nfct)
 		return NF_ACCEPT;
 
 	/* Gather fragments. */
+	/* 分片重组 */
 	if ((*pskb)->nh.iph->frag_off & htons(IP_MF|IP_OFFSET)) {
 		*pskb = ip_ct_gather_frags(*pskb);
 		if (!*pskb)
@@ -515,7 +519,9 @@ unsigned int ip_conntrack_in(unsigned int hooknum,
 		/* Not valid part of a connection */
 		return NF_ACCEPT;
 
+	/* 获取具体的协议 */
 	proto = find_proto((*pskb)->nh.iph->protocol);
+	/* 内部设置刷新定时器 */
 	/* If this is new, this is first time timer will be set */
 	ret = proto->packet(ct, (*pskb)->nh.iph, (*pskb)->len, ctinfo);
 
@@ -643,8 +649,8 @@ void ip_conntrack_helper_unregister(struct ip_conntrack_helper *me)
 	MOD_DEC_USE_COUNT;
 }
 
-/* Refresh conntrack for this many jiffies: if noone calls this,
-   conntrack will vanish with current skb. */
+/* 设置刷新定时器 */
+/* Refresh conntrack for this many jiffies: if noone calls this, conntrack will vanish with current skb. */
 void ip_ct_refresh(struct ip_conntrack *ct, unsigned long extra_jiffies)
 {
 	WRITE_LOCK(&ip_conntrack_lock);

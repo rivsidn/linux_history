@@ -221,12 +221,11 @@ static int help(const struct iphdr *iph, size_t len,
 	return NF_ACCEPT;
 }
 
-/* Returns TRUE if it wants to help this connection (tuple is the
-   tuple of REPLY packets from server). */
+/* tuple是从服务器返回的报文 */
+/* Returns TRUE if it wants to help this connection (tuple is the tuple of REPLY packets from server). */
 static int ftp_will_help(const struct ip_conntrack_tuple *rtuple)
 {
-	return (rtuple->dst.protonum == IPPROTO_TCP
-		&& rtuple->src.u.tcp.port == __constant_htons(21));
+	return (rtuple->dst.protonum == IPPROTO_TCP && rtuple->src.u.tcp.port == __constant_htons(21));
 }
 
 static struct ip_conntrack_helper ftp = { { NULL, NULL },

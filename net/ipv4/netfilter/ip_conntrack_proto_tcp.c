@@ -58,7 +58,7 @@ static const char *tcp_conntrack_names[] = {
 #define HOURS * 60 MINS
 #define DAYS * 24 HOURS
 
-
+/* 老化定时器 */
 static unsigned long tcp_timeouts[]
 = { 30 MINS, 	/*	TCP_CONNTRACK_NONE,	*/
     5 DAYS,	/*	TCP_CONNTRACK_ESTABLISHED,	*/
@@ -146,6 +146,7 @@ static unsigned int tcp_print_conntrack(char *buffer,
 	return sprintf(buffer, "%s ", tcp_conntrack_names[state]);
 }
 
+/* 通过tcp头部状态获取index */
 static unsigned int get_conntrack_index(const struct tcphdr *tcph)
 {
 	if (tcph->rst) return 3;
@@ -163,8 +164,7 @@ static int tcp_packet(struct ip_conntrack *conntrack,
 	enum tcp_conntrack newconntrack;
 	struct tcphdr *tcph = (struct tcphdr *)((u_int32_t *)iph + iph->ihl);
 
-	/* We're guaranteed to have the base header, but maybe not the
-           options. */
+	/* We're guaranteed to have the base header, but maybe not the options. */
 	if (len < (iph->ihl + tcph->doff) * 4) {
 		DEBUGP("ip_conntrack_tcp: Truncated packet.\n");
 		return -1;

@@ -78,6 +78,10 @@ DEBUGP("tuple %p: %u %u.%u.%u.%u:%u -> %u.%u.%u.%u:%u\n",	\
        IP_PARTS((tp)->src.ip), ntohs((tp)->src.u.all),		\
        IP_PARTS((tp)->dst.ip), ntohs((tp)->dst.u.all))
 
+/*
+ * 这里写错了，应该是:
+ * #define CTINFO2DIR(ctinfo) ((ctinfo) >= IP_CT_IS_REPLY ? IP_CT_DIR_REPLY : IP_CT_DIR_ORIGINAL)
+ */
 #define CTINFO2DIR(ctinfo) ((ctinfo) == IP_CT_IS_REPLY ? IP_CT_DIR_REPLY : IP_CT_DIR_ORIGINAL)
 
 /* If we're the first tuple, it's the original dir. */

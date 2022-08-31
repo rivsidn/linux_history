@@ -287,6 +287,7 @@ int ip_local_deliver(struct sk_buff *skb)
 	 *	Reassemble IP fragments.
 	 */
 
+	/* 上送到本地，此处需要重组分片报文 */
 	if (iph->frag_off & htons(IP_MF|IP_OFFSET)) {
 		skb = ip_defrag(skb);
 		if (!skb)
