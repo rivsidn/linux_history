@@ -131,8 +131,7 @@ static int help(const struct iphdr *iph, size_t len,
 		return NF_ACCEPT;
 
 	/* Until there's been traffic both ways, don't look in packets. */
-	if (ctinfo != IP_CT_ESTABLISHED
-	    && ctinfo != IP_CT_ESTABLISHED+IP_CT_IS_REPLY) {
+	if (ctinfo != IP_CT_ESTABLISHED && ctinfo != IP_CT_ESTABLISHED+IP_CT_IS_REPLY) {
 		DEBUGP("ftp: Conntrackinfo = %u\n", ctinfo);
 		return NF_ACCEPT;
 	}

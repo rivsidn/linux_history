@@ -619,8 +619,7 @@ static inline int unhelp(struct ip_conntrack_tuple_hash *i,
 		i->ctrack->helper = NULL;
 		/* Get rid of any expected. */
 		if (i->ctrack->expected.expectant) {
-			IP_NF_ASSERT(i->ctrack->expected.expectant
-				     == i->ctrack);
+			IP_NF_ASSERT(i->ctrack->expected.expectant == i->ctrack);
 			LIST_DELETE(&expect_list, &i->ctrack->expected);
 			i->ctrack->expected.expectant = NULL;
 		}
