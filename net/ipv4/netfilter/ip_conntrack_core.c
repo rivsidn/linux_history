@@ -324,6 +324,7 @@ static inline int helper_cmp(const struct ip_conntrack_helper *i,
 static int expect_cmp(const struct ip_conntrack_expect *i,
 		      const struct ip_conntrack_tuple *tuple)
 {
+	/* 只比较了 源IP、目的IP、目的端口号、协议号 */
 	return (tuple->src.ip == i->tuple.src.ip
 		&& tuple->dst.ip == i->tuple.dst.ip
 		&& tuple->dst.u.all == i->tuple.dst.u.all

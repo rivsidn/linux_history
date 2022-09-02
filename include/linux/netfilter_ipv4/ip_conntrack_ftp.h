@@ -14,8 +14,10 @@ DECLARE_LOCK_EXTERN(ip_ftp_lock);
 enum ip_ct_ftp_type
 {
 	/* PORT command from client */
+	/* 端口命令来自客户端 */
 	IP_CT_FTP_PORT = IP_CT_DIR_ORIGINAL,
 	/* PASV response from server */
+	/* 被动模式来自服务器 */
 	IP_CT_FTP_PASV = IP_CT_DIR_REPLY
 };
 
@@ -32,8 +34,10 @@ struct ip_ct_ftp
 	enum ip_ct_ftp_type ftptype;
 	/* Port that was to be used */
 	u_int16_t port;
+	/* 下一个合法序列号的位置 */
 	/* Next valid seq position for cmd matching after newline */
 	u_int32_t seq_aft_nl[IP_CT_DIR_MAX];
+	/* 这里的set是是否设置的意思，不是集合的意思！ */
 	/* 0 means seq_match_aft_nl not set */
 	int seq_aft_nl_set[IP_CT_DIR_MAX];
 };

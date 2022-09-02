@@ -32,17 +32,16 @@ DECLARE_LOCK(ip_ftp_lock);
 #define IP_PARTS(n) IP_PARTS_NATIVE(ntohl(n))
 
 static struct {
-	const char *pattern;
-	size_t plen;
-	char term;
+	const char *pattern;	//地址字符串
+	size_t plen;		//字符串长度
+	char term;		//结束符号
 } search[2] = {
 	[IP_CT_FTP_PORT] { CLIENT_STRING, sizeof(CLIENT_STRING) - 1, '\r' },
 	[IP_CT_FTP_PASV] { SERVER_STRING, sizeof(SERVER_STRING) - 1, ')' }
 };
 
 /* Returns 0, or length of numbers */
-static int try_number(const char *data, size_t dlen, u_int32_t array[6],
-		      char term)
+static int try_number(const char *data, size_t dlen, u_int32_t array[6], char term)
 {
 	u_int32_t i, len;
 
@@ -54,8 +53,7 @@ static int try_number(const char *data, size_t dlen, u_int32_t array[6],
 		else if (*data == ',')
 			i++;
 		else {
-			/* Unexpected character; true if it's the
-			   terminator and we're finished. */
+			/* Unexpected character; true if it's the terminator and we're finished. */
 			if (*data == term && i == 5)
 				return len;
 
@@ -68,6 +66,16 @@ static int try_number(const char *data, size_t dlen, u_int32_t array[6],
 	return 0;
 }
 
+/*
+ * data		输入参数，FTP数据
+ * dlen		输入参数，FTP数据长度
+ * pattern	输入参数，匹配的模板
+ * len		输入参数，匹配的模板的长度
+ * term		输入参数，匹配模板的结束字符
+ * numoff	输出参数，IP地址和端口号的偏移量
+ * numlen	输出参数，IP地址和端口号的长度
+ * array	输出参数，获取IP地址(4个数字)和端口号(2个数字)
+ */
 /* Return 1 for match, 0 for accept, -1 for partial. */
 static int find_pattern(const char *data, size_t dlen,
 			const char *pattern, size_t plen,
@@ -117,6 +125,7 @@ static int help(const struct iphdr *iph, size_t len,
 	struct tcphdr *tcph = (void *)iph + iph->ihl * 4;
 	const char *data = (const char *)tcph + tcph->doff * 4;
 	unsigned int tcplen = len - iph->ihl * 4;
+	/* TCP包数据长度 */
 	unsigned int datalen = tcplen - tcph->doff * 4;
 	u_int32_t old_seq_aft_nl;
 	int old_seq_aft_nl_set;
@@ -156,26 +165,27 @@ static int help(const struct iphdr *iph, size_t len,
 	old_seq_aft_nl_set = info->seq_aft_nl_set[dir];
 	old_seq_aft_nl = info->seq_aft_nl[dir];
 
+	/* 是一个合法的ftp数据包 */
 	DEBUGP("conntrack_ftp: datalen %u\n", datalen);
 	if ((datalen > 0) && (data[datalen-1] == '\n')) {
 		DEBUGP("conntrack_ftp: datalen %u ends in \\n\n", datalen);
-		if (!old_seq_aft_nl_set
-		    || after(ntohl(tcph->seq) + datalen, old_seq_aft_nl)) {
-			DEBUGP("conntrack_ftp: updating nl to %u\n",
-			       ntohl(tcph->seq) + datalen);
+		/* 没有设置或者当前TCP包的序列号+数据长度在之前的序列号之后 */
+		if (!old_seq_aft_nl_set || after(ntohl(tcph->seq) + datalen, old_seq_aft_nl)) {
+			DEBUGP("conntrack_ftp: updating nl to %u\n", ntohl(tcph->seq) + datalen);
 			info->seq_aft_nl[dir] = ntohl(tcph->seq) + datalen;
 			info->seq_aft_nl_set[dir] = 1;
 		}
 	}
 	UNLOCK_BH(&ip_ftp_lock);
 
-	if(!old_seq_aft_nl_set ||
-			(ntohl(tcph->seq) != old_seq_aft_nl)) {
+	/* 如果没有设置老的序列号或者当前TCP的序列号不等于老的序列号 */
+	if(!old_seq_aft_nl_set || (ntohl(tcph->seq) != old_seq_aft_nl)) {
 		DEBUGP("ip_conntrack_ftp_help: wrong seq pos %s(%u)\n",
 		       old_seq_aft_nl_set ? "":"(UNSET) ", old_seq_aft_nl);
 		return NF_ACCEPT;
 	}
 
+	/* 通过方向，查找对应的模板 */
 	switch (find_pattern(data, datalen,
 			     search[dir].pattern,
 			     search[dir].plen, search[dir].term,
@@ -207,6 +217,7 @@ static int help(const struct iphdr *iph, size_t len,
 	info->ftptype = dir;
 	info->port = array[4] << 8 | array[5];
 
+	/* 参见expect_cmp() */
 	t = ((struct ip_conntrack_tuple)
 		{ { ct->tuplehash[!dir].tuple.src.ip,
 		    { 0 }, 0 },
