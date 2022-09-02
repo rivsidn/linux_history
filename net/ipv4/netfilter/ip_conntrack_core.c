@@ -350,8 +350,7 @@ init_conntrack(const struct ip_conntrack_tuple *tuple,
 		return 1;
 	}
 
-	if(ip_conntrack_max &&
-	    (atomic_read(&ip_conntrack_count) >= ip_conntrack_max)) {
+	if(ip_conntrack_max && (atomic_read(&ip_conntrack_count) >= ip_conntrack_max)) {
 		if (net_ratelimit())
 			printk(KERN_WARNING "ip_conntrack: maximum limit of %d entries exceeded\n", ip_conntrack_max);
 		return 1;
@@ -406,8 +405,10 @@ init_conntrack(const struct ip_conntrack_tuple *tuple,
 		nf_conntrack_get(&conntrack->master);
 		ctinfo = IP_CT_RELATED;
 	} else {
+		/* 最开始肯定是IP_CT_NEW状态 */
 		ctinfo = IP_CT_NEW;
 	}
+	/* 创建五元组，加入到hash表中 */
 	list_prepend(&ip_conntrack_hash[hash],
 		     &conntrack->tuplehash[IP_CT_DIR_ORIGINAL]);
 	list_prepend(&ip_conntrack_hash[repl_hash],
@@ -462,6 +463,7 @@ resolve_normal_ct(struct sk_buff *skb)
 			ctinfo = IP_CT_NEW;
 		}
 	}
+	/* 设置nfct，也就是报文当前状态 */
 	skb->nfct = &h->ctrack->infos[ctinfo];
 }
 
