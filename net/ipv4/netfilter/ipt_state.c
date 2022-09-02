@@ -22,6 +22,7 @@ match(const struct sk_buff *skb,
 	enum ip_conntrack_info ctinfo;
 	unsigned int statebit;
 
+	/* 获取链接跟踪状态 */
 	if (!ip_conntrack_get((struct sk_buff *)skb, &ctinfo))
 		statebit = IPT_STATE_INVALID;
 	else

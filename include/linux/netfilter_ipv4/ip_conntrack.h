@@ -6,10 +6,13 @@
 
 #include <linux/netfilter_ipv4/ip_conntrack_tuple.h>
 
+/*
+ * 这些状态描述的是单个过来包文的状态，并不是会话的状态.
+ */
 enum ip_conntrack_info
 {
 	/* Part of an established connection (either direction). */
-	/* 任意方向的链接已建立 */
+	/* 某一方向的链接已建立，此处的建立也就是有报文通过的意思，注意与TCP的状态区分 */
 	IP_CT_ESTABLISHED,
 
 	/* Like NEW, but related to an existing connection, or ICMP error (in either direction). */

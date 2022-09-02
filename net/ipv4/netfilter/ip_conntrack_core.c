@@ -475,7 +475,7 @@ ip_conntrack_get(struct sk_buff *skb, enum ip_conntrack_info *ctinfo)
 			resolve_normal_ct(skb);
 	}
 
-	/* 更新链接跟踪状态 */
+	/* 获取链接跟踪状态 */
 	if (skb->nfct) {
 		struct ip_conntrack *ct = (struct ip_conntrack *)skb->nfct->master;
 
