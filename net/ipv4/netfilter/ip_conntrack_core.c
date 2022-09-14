@@ -233,8 +233,7 @@ ip_conntrack_find_get(const struct ip_conntrack_tuple *tuple,
 	return h;
 }
 
-/* Returns true if a connection correspondings to the tuple (required
-   for NAT). */
+/* Returns true if a connection correspondings to the tuple (required for NAT). */
 int
 ip_conntrack_tuple_taken(const struct ip_conntrack_tuple *tuple,
 			 const struct ip_conntrack *ignored_conntrack)

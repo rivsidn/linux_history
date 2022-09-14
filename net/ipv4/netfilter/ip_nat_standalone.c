@@ -158,6 +158,11 @@ ip_nat_out(unsigned int hooknum,
 
 /* We must be after connection tracking and before packet filtering. */
 
+/*
+ * NF_IP_PRE_ROUTING	DNAT
+ * NF_IP_POST_ROUTING	SNAT
+ * NF_IP_LOCAL_OUT	DNAT
+ */
 /* Before packet filtering, change destination */
 static struct nf_hook_ops ip_nat_in_ops
 = { { NULL, NULL }, ip_nat_fn, PF_INET, NF_IP_PRE_ROUTING, NF_IP_PRI_NAT_DST };

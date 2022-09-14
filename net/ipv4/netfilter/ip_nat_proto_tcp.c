@@ -22,6 +22,7 @@ tcp_in_range(const struct ip_conntrack_tuple *tuple,
 	else
 		port = tuple->dst.u.tcp.port;
 
+	/* 端口号检查 */
 	return ntohs(port) >= ntohs(min->tcp.port)
 		&& ntohs(port) <= ntohs(max->tcp.port);
 }
