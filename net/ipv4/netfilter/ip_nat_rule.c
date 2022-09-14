@@ -254,6 +254,7 @@ int ip_nat_rule_find(struct sk_buff **pskb,
 {
 	int ret;
 
+	/* 处理子链接 */
 	/* Master won't vanish while this ctrack still alive */
 	if (ct->master.master) {
 		struct ip_conntrack *master;

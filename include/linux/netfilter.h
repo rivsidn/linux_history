@@ -20,7 +20,7 @@
 #define NF_MAX_VERDICT NF_REPEAT
 
 /* Generic cache responses from hook functions. */
-#define NFC_ALTERED 0x8000
+#define NFC_ALTERED 0x8000		//报文被改变，后边需要重新路由
 #define NFC_UNKNOWN 0x4000
 
 #ifdef __KERNEL__

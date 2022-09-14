@@ -56,9 +56,11 @@ ip_nat_fn(unsigned int hooknum,
 	struct ip_conntrack *ct;
 	enum ip_conntrack_info ctinfo;
 	struct ip_nat_info *info;
+	/* 通过hook点判断NAT操作类型 */
 	/* maniptype == SRC for postrouting. */
 	enum ip_nat_manip_type maniptype = HOOK2MANIP(hooknum);
 
+	/* 到达此处的报文一定没有分片包 */
 	/* We never see fragments: conntrack defrags on pre-routing
 	   and local-out, and ip_nat_out protects post-routing. */
 	IP_NF_ASSERT(!((*pskb)->nh.iph->frag_off
@@ -71,9 +73,9 @@ ip_nat_fn(unsigned int hooknum,
 	if ((*pskb)->pkt_type != PACKET_LOOPBACK)
 		(*pskb)->ip_summed = CHECKSUM_NONE;
 
+	/* 获取链接跟踪 */
 	ct = ip_conntrack_get(*pskb, &ctinfo);
-	/* Can't track?  Maybe out of memory: this would make NAT
-           unreliable. */
+	/* Can't track?  Maybe out of memory: this would make NAT unreliable. */
 	if (!ct)
 		return NF_DROP;
 
@@ -90,14 +92,12 @@ ip_nat_fn(unsigned int hooknum,
 		info = &ct->nat.info;
 
 		WRITE_LOCK(&ip_nat_lock);
-		/* Seen it before?  This can happen for loopback, retrans,
-		   or local packets.. */
+		/* Seen it before?  This can happen for loopback, retrans, or local packets.. */
 		if (!(info->initialized & (1 << maniptype))) {
 			int in_hashes = info->initialized;
 			unsigned int ret;
 
-			ret = ip_nat_rule_find(pskb, hooknum, in, out,
-					       ct, info);
+			ret = ip_nat_rule_find(pskb, hooknum, in, out, ct, info);
 			if (ret != NF_ACCEPT) {
 				WRITE_UNLOCK(&ip_nat_lock);
 				return ret;
@@ -127,6 +127,7 @@ ip_nat_fn(unsigned int hooknum,
 	return do_bindings(ct, ctinfo, info, hooknum, pskb);
 }
 
+/* 从设备出去的包文，经过路由转发之后，改变报文源IP */
 static unsigned int
 ip_nat_out(unsigned int hooknum,
 	   struct sk_buff **pskb,
@@ -144,6 +145,7 @@ ip_nat_out(unsigned int hooknum,
 
 	   I'm starting to have nightmares about fragments.  */
 
+	/* 此处可能会有分片，如果有分片，需要重组之后再做NAT */
 	if ((*pskb)->nh.iph->frag_off & __constant_htons(IP_MF|IP_OFFSET)) {
 		*pskb = ip_ct_gather_frags(*pskb);
 
@@ -209,6 +211,7 @@ static int init_or_cleanup(int init)
 
 	if (!init) goto cleanup;
 
+	/* 注册nat表、nat target */
 	ret = ip_nat_rule_init();
 	if (ret < 0) {
 		printk("ip_nat_init: can't setup rules.\n");

@@ -6,8 +6,10 @@
 /* Header to do more comprehensive job than linux/list.h; assume list
    is first entry in structure. */
 
-/* Return pointer to first true entry, if any, or NULL.  A macro
-   required to allow inlining of cmpfn. */
+/*
+ * cmpfn 返回非空、非零时停止
+ */
+/* Return pointer to first true entry, if any, or NULL.  A macro required to allow inlining of cmpfn. */
 #define LIST_FIND(head, cmpfn, type, args...)		\
 ({							\
 	const struct list_head *__i = (head);		\

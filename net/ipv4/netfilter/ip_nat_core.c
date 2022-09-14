@@ -47,8 +47,7 @@ extern struct ip_nat_protocol unknown_nat_protocol;
 static inline size_t
 hash_by_ipsproto(u_int32_t src, u_int32_t dst, u_int16_t proto)
 {
-	/* Modified src and dst, to ensure we don't create two
-           identical streams. */
+	/* Modified src and dst, to ensure we don't create two identical streams. */
 	return (src + dst + proto) % IP_NAT_HTABLE_SIZE;
 }
 
@@ -71,19 +70,13 @@ static void ip_nat_cleanup_conntrack(struct ip_conntrack *conn)
 	IP_NF_ASSERT(info->byipsproto.conntrack);
 
 	WRITE_LOCK(&ip_nat_lock);
-	LIST_DELETE(&bysource[hash_by_src(&conn->tuplehash[IP_CT_DIR_ORIGINAL]
-					  .tuple.src,
-					  conn->tuplehash[IP_CT_DIR_ORIGINAL]
-					  .tuple.dst.protonum)],
+	LIST_DELETE(&bysource[hash_by_src(&conn->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src,
+		    conn->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum)],
 		    &info->bysource);
 
-	LIST_DELETE(&byipsproto
-		    [hash_by_ipsproto(conn->tuplehash[IP_CT_DIR_REPLY]
-				      .tuple.src.ip,
-				      conn->tuplehash[IP_CT_DIR_REPLY]
-				      .tuple.dst.ip,
-				      conn->tuplehash[IP_CT_DIR_REPLY]
-				      .tuple.dst.protonum)],
+	LIST_DELETE(&byipsproto[hash_by_ipsproto(conn->tuplehash[IP_CT_DIR_REPLY].tuple.src.ip,
+						 conn->tuplehash[IP_CT_DIR_REPLY].tuple.dst.ip,
+						 conn->tuplehash[IP_CT_DIR_REPLY].tuple.dst.protonum)],
 		    &info->byipsproto);
 	WRITE_UNLOCK(&ip_nat_lock);
 }
@@ -138,46 +131,38 @@ in_range(const struct ip_conntrack_tuple *tuple,
 	 const struct ip_conntrack_manip *manip,
 	 const struct ip_nat_multi_range *mr)
 {
-	struct ip_nat_protocol *proto = find_nat_proto(tuple->dst.protonum);
 	unsigned int i;
+	struct ip_nat_protocol *proto = find_nat_proto(tuple->dst.protonum);
 	struct ip_conntrack_tuple newtuple = { *manip, tuple->dst };
 
+	/* If we are allowed to map IPs, then we must be in the range specified, otherwise we must be unchanged. */
 	for (i = 0; i < mr->rangesize; i++) {
-		/* If we are allowed to map IPs, then we must be in the
-		   range specified, otherwise we must be unchanged. */
 		if (mr->range[i].flags & IP_NAT_RANGE_MAP_IPS) {
-			if (ntohl(newtuple.src.ip) < ntohl(mr->range[i].min_ip)
-			    || (ntohl(newtuple.src.ip)
-				> ntohl(mr->range[i].max_ip)))
+			if (ntohl(newtuple.src.ip) < ntohl(mr->range[i].min_ip) ||
+			    (ntohl(newtuple.src.ip) > ntohl(mr->range[i].max_ip)))
 				continue;
 		} else {
 			if (newtuple.src.ip != tuple->src.ip)
 				continue;
 		}
 
-		if ((mr->range[i].flags & IP_NAT_RANGE_PROTO_SPECIFIED)
-		    && proto->in_range(&newtuple, IP_NAT_MANIP_SRC,
-				       &mr->range[i].min, &mr->range[i].max))
+		if ((mr->range[i].flags & IP_NAT_RANGE_PROTO_SPECIFIED) &&
+		    proto->in_range(&newtuple, IP_NAT_MANIP_SRC, &mr->range[i].min, &mr->range[i].max))
 			return 1;
 	}
 	return 0;
 }
 
+/* 遍历hash表中链接跟踪，依次比较，满足条件则返回 */
 static inline int
 src_cmp(const struct ip_nat_hash *i,
 	const struct ip_conntrack_tuple *tuple,
 	const struct ip_nat_multi_range *mr)
 {
-	return (i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum
-		== tuple->dst.protonum
-		&& i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.ip
-		== tuple->src.ip
-		&& i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all
-		== tuple->src.u.all
-		&& in_range(tuple,
-			    &i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL]
-			    .tuple.src,
-			    mr));
+	return (i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == tuple->dst.protonum &&
+		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.ip == tuple->src.ip &&
+		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all == tuple->src.u.all &&
+		in_range(tuple, &i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src, mr));
 }
 
 /* Only called for SRC manip */
@@ -185,6 +170,7 @@ static struct ip_conntrack_manip *
 find_appropriate_src(const struct ip_conntrack_tuple *tuple,
 		     const struct ip_nat_multi_range *mr)
 {
+	/* 获取hash值 */
 	unsigned int h = hash_by_src(&tuple->src, tuple->dst.protonum);
 	struct ip_nat_hash *i;
 
@@ -337,6 +323,13 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 	return (struct ip_nat_range *)best.range;
 }
 
+/*
+ * tuple	输出参数
+ * orig_tuple	输入参数
+ * mrr		输入参数
+ * conntrack	输入参数
+ * hooknum	输入参数
+ */
 static int
 get_unique_tuple(struct ip_conntrack_tuple *tuple,
 		 const struct ip_conntrack_tuple *orig_tuple,
@@ -344,14 +337,12 @@ get_unique_tuple(struct ip_conntrack_tuple *tuple,
 		 struct ip_conntrack *conntrack,
 		 unsigned int hooknum)
 {
-	struct ip_nat_protocol *proto
-		= find_nat_proto(orig_tuple->dst.protonum);
+	struct ip_nat_protocol *proto = find_nat_proto(orig_tuple->dst.protonum);
 	struct ip_nat_range *rptr;
 	unsigned int i;
 	int ret;
 
-	/* We temporarily use flags for marking full parts, but we
-	   always clean up afterwards */
+	/* We temporarily use flags for marking full parts, but we always clean up afterwards */
 	struct ip_nat_multi_range *mr = (void *)mrr;
 
 	/* 1) If this srcip/proto/src-proto-part is currently mapped,
@@ -362,6 +353,7 @@ get_unique_tuple(struct ip_conntrack_tuple *tuple,
 	   So far, we don't do local source mappings, so multiple
 	   manips not an issue.  */
 	if (hooknum == NF_IP_POST_ROUTING) {
+		/* 源NAT */
 		struct ip_conntrack_manip *manip;
 
 		manip = find_appropriate_src(orig_tuple, mr);
@@ -455,10 +447,8 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 	/* What we've got will look like inverse of reply. Normally
 	   this is what is in the conntrack, except for prior
 	   manipulations (future optimization: if num_manips == 0,
-	   orig_tp =
-	   conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple) */
-	invert_tuplepr(&orig_tp,
-		       &conntrack->tuplehash[IP_CT_DIR_REPLY].tuple);
+	   orig_tp = conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple) */
+	invert_tuplepr(&orig_tp, &conntrack->tuplehash[IP_CT_DIR_REPLY].tuple);
 
 #if 0
 	{
@@ -487,8 +477,7 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 #endif
 
 	do {
-		if (!get_unique_tuple(&new_tuple, &orig_tp, mr, conntrack,
-				      hooknum)) {
+		if (!get_unique_tuple(&new_tuple, &orig_tp, mr, conntrack, hooknum)) {
 			DEBUGP("ip_nat_setup_info: Can't get unique for %p.\n",
 			       conntrack);
 			return NF_DROP;
@@ -519,14 +508,12 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
                    If fail this race (reply tuple now used), repeat. */
 	} while (!ip_conntrack_alter_reply(conntrack, &reply));
 
-	/* FIXME: We can simply used existing conntrack reply tuple
-           here --RR */
+	/* FIXME: We can simply used existing conntrack reply tuple here --RR */
 	/* Create inverse of original: C/D/A/B' */
 	invert_tuplepr(&inv_tuple, &orig_tp);
 
 	/* Has source changed?. */
-	if (memcmp(&new_tuple.src, &orig_tp.src, sizeof(new_tuple.src))
-	    != 0) {
+	if (memcmp(&new_tuple.src, &orig_tp.src, sizeof(new_tuple.src)) != 0) {
 		/* In this direction, a source manip. */
 		info->manips[info->num_manips++] =
 			((struct ip_nat_info_manip)
@@ -544,8 +531,7 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 	}
 
 	/* Has destination changed? */
-	if (memcmp(&new_tuple.dst, &orig_tp.dst, sizeof(new_tuple.dst))
-	    != 0) {
+	if (memcmp(&new_tuple.dst, &orig_tp.dst, sizeof(new_tuple.dst)) != 0) {
 		/* In this direction, a destination manip */
 		info->manips[info->num_manips++] =
 			((struct ip_nat_info_manip)
@@ -604,20 +590,14 @@ void replace_in_hashes(struct ip_conntrack *conntrack,
 void place_in_hashes(struct ip_conntrack *conntrack,
 		     struct ip_nat_info *info)
 {
-	unsigned int srchash
-		= hash_by_src(&conntrack->tuplehash[IP_CT_DIR_ORIGINAL]
-			      .tuple.src,
-			      conntrack->tuplehash[IP_CT_DIR_ORIGINAL]
-			      .tuple.dst.protonum);
-	/* We place packet as seen OUTGOUNG in byips_proto hash
-           (ie. reverse dst and src of reply packet. */
-	unsigned int ipsprotohash
-		= hash_by_ipsproto(conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.dst.ip,
-				   conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.src.ip,
-				   conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.dst.protonum);
+	/* hash_by_src() 通过ORIGINAL方向源IP、源端口、协议类型做hash */
+	unsigned int srchash = hash_by_src(&conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src,
+			      conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum);
+	/* hash_by_ipsproto()通过REPLY方向目的IP、源IP、协议类型做hash */
+	/* We place packet as seen OUTGOUNG in byips_proto hash (ie. reverse dst and src of reply packet. */
+	unsigned int ipsprotohash = hash_by_ipsproto(conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.dst.ip,
+				   conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.src.ip,
+				   conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.dst.protonum);
 
 	IP_NF_ASSERT(!info->bysource.conntrack);
 
@@ -625,6 +605,7 @@ void place_in_hashes(struct ip_conntrack *conntrack,
 	info->byipsproto.conntrack = conntrack;
 	info->bysource.conntrack = conntrack;
 
+	/* 加入hash表中 */
 	list_prepend(&bysource[srchash], &info->bysource);
 	list_prepend(&byipsproto[ipsprotohash], &info->byipsproto);
 }
@@ -701,6 +682,7 @@ do_bindings(struct ip_conntrack *ct,
 	} else return NF_ACCEPT;
 }
 
+/* 回来的ICMP报文需要做NAT */
 void
 icmp_reply_translation(struct sk_buff *skb,
 		       struct ip_conntrack *conntrack,
