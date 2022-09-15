@@ -720,7 +720,8 @@ icmp_reply_translation(struct sk_buff *skb,
 		   src/dst reversed, so where we would normally apply
 		   a dst manip, we reply a src, and vice versa. */
 		/*
-		 * TODO: 这里为什么是 != dir
+		 * 这里的 info->mapips[i].direction != dir 是错误的，正确的写法应该是
+		 * info->mapips[i].direction == dir，该问题在 2.4.0-test2pre5 得到了修改.
 		 */
 		if (info->manips[i].direction != dir && info->manips[i].hooknum == opposite_hook[hooknum]) {
 			DEBUGP("icmp_reply: inner %s -> %u.%u.%u.%u %u\n",
