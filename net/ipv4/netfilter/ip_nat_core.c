@@ -81,9 +81,13 @@ static void ip_nat_cleanup_conntrack(struct ip_conntrack *conn)
 	WRITE_UNLOCK(&ip_nat_lock);
 }
 
-/* We do checksum mangling, so if they were wrong before they're still
- * wrong.  Also works for incomplete packets (eg. ICMP dest
- * unreachables.) */
+/*
+ * We do checksum mangling, so if they were wrong before they're still
+ * wrong.  Also works for incomplete packets (eg. ICMP dest unreachables.)
+ */
+/*
+ * 根据报文修改调整校验和
+ */
 u_int16_t
 ip_nat_cheat_check(u_int32_t oldvalinv, u_int32_t newval, u_int16_t oldcheck)
 {
@@ -326,6 +330,8 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
  * mrr		输入参数
  * conntrack	输入参数
  * hooknum	输入参数
+ *
+ * 查找到返回 1，失败返回 0
  */
 static int
 get_unique_tuple(struct ip_conntrack_tuple *tuple,
@@ -369,7 +375,6 @@ get_unique_tuple(struct ip_conntrack_tuple *tuple,
 		DEBUGP("Found best for "); DUMP_TUPLE(tuple);
 		/* 3) The per-protocol part of the manip is made to map into the range to make a unique tuple. */
 
-		/* TODO: next... */
 		/* Only bother mapping if it's not already in range and unique */
 		if ((!(rptr->flags & IP_NAT_RANGE_PROTO_SPECIFIED) ||
 		     proto->in_range(tuple, HOOK2MANIP(hooknum), &rptr->min, &rptr->max)) &&
@@ -467,8 +472,7 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 
 	do {
 		if (!get_unique_tuple(&new_tuple, &orig_tp, mr, conntrack, hooknum)) {
-			DEBUGP("ip_nat_setup_info: Can't get unique for %p.\n",
-			       conntrack);
+			DEBUGP("ip_nat_setup_info: Can't get unique for %p.\n", conntrack);
 			return NF_DROP;
 		}
 
@@ -482,6 +486,10 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 		DUMP_TUPLE(&new_tuple);
 #endif
 
+		/*
+		 * 此时我们有两个五元组(SRCIP/SRCPT/DSTIP/DSTPT):
+		 * 最初的(A/B/C/D) 和修改后的(E/F/G/H).
+		 */
 		/* We now have two tuples (SRCIP/SRCPT/DSTIP/DSTPT):
 		   the original (A/B/C/D') and the mangled one (E/F/G/H').
 
@@ -489,8 +497,7 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 		   part, so we create inverses of both to start, then
 		   derive the other fields we need.  */
 
-		/* Reply connection: simply invert the new tuple
-                   (G/H/E/F') */
+		/* Reply connection: simply invert the new tuple (G/H/E/F') */
 		invert_tuplepr(&reply, &new_tuple);
 
 		/* Alter conntrack table so it recognizes replies.
@@ -501,8 +508,10 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 	/* Create inverse of original: C/D/A/B' */
 	invert_tuplepr(&inv_tuple, &orig_tp);
 
+	/* 存储NAT地址转换信息到info中 */
+
 	/* Has source changed?. */
-	if (memcmp(&new_tuple.src, &orig_tp.src, sizeof(new_tuple.src)) != 0) {
+	if (memcmp(&new_tuple.src, &orig_tp.src, sizeof(new_tuple.src)) != 0) {		//比较源
 		/* In this direction, a source manip. */
 		info->manips[info->num_manips++] =
 			((struct ip_nat_info_manip)
@@ -520,7 +529,7 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 	}
 
 	/* Has destination changed? */
-	if (memcmp(&new_tuple.dst, &orig_tp.dst, sizeof(new_tuple.dst)) != 0) {
+	if (memcmp(&new_tuple.dst, &orig_tp.dst, sizeof(new_tuple.dst)) != 0) {		//比较目的
 		/* In this direction, a destination manip */
 		info->manips[info->num_manips++] =
 			((struct ip_nat_info_manip)
@@ -551,27 +560,20 @@ void replace_in_hashes(struct ip_conntrack *conntrack,
 		       struct ip_nat_info *info)
 {
 	/* Source has changed, so replace in hashes. */
-	unsigned int srchash
-		= hash_by_src(&conntrack->tuplehash[IP_CT_DIR_ORIGINAL]
-			      .tuple.src,
-			      conntrack->tuplehash[IP_CT_DIR_ORIGINAL]
-			      .tuple.dst.protonum);
-	/* We place packet as seen OUTGOUNG in byips_proto hash
-           (ie. reverse dst and src of reply packet. */
-	unsigned int ipsprotohash
-		= hash_by_ipsproto(conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.dst.ip,
-				   conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.src.ip,
-				   conntrack->tuplehash[IP_CT_DIR_REPLY]
-				   .tuple.dst.protonum);
+	unsigned int srchash = hash_by_src(&conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src,
+			      conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum);
+	/* We place packet as seen OUTGOUNG in byips_proto hash (ie. reverse dst and src of reply packet. */
+	unsigned int ipsprotohash = hash_by_ipsproto(conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.dst.ip,
+				   conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.src.ip,
+				   conntrack->tuplehash[IP_CT_DIR_REPLY].tuple.dst.protonum);
 
 	IP_NF_ASSERT(info->bysource.conntrack == conntrack);
 	MUST_BE_WRITE_LOCKED(&ip_nat_lock);
 
+	/* 从之前的hash表中删除 */
 	list_del(&info->bysource.list);
 	list_del(&info->byipsproto.list);
-
+	/* 添加到新的hash表中 */
 	list_prepend(&bysource[srchash], &info->bysource);
 	list_prepend(&byipsproto[ipsprotohash], &info->byipsproto);
 }
@@ -640,13 +642,14 @@ do_bindings(struct ip_conntrack *ct,
 	struct ip_nat_helper *helper;
 	enum ip_conntrack_dir dir = CTINFO2DIR(ctinfo);
 
-	/* Need nat lock to protect against modification, but neither
-	   conntrack (referenced) and helper (deleted with
-	   synchronize_bh()) can vanish. */
+	/*
+	 * Need nat lock to protect against modification, but neither conntrack (referenced)
+	 * and helper (deleted with synchronize_bh()) can vanish.
+	 */
 	READ_LOCK(&ip_nat_lock);
 	for (i = 0; i < info->num_manips; i++) {
-		if (info->manips[i].direction == dir
-		    && info->manips[i].hooknum == hooknum) {
+		/* 方向、hook点满足条件则执行NAT动作 */
+		if (info->manips[i].direction == dir && info->manips[i].hooknum == hooknum) {
 			DEBUGP("Mangling %p: %s to %u.%u.%u.%u %u\n",
 			       *pskb,
 			       info->manips[i].maniptype == IP_NAT_MANIP_SRC
@@ -668,7 +671,9 @@ do_bindings(struct ip_conntrack *ct,
 		IP_NF_ASSERT(!((*pskb)->nh.iph->frag_off
 			       & __constant_htons(IP_MF|IP_OFFSET)));
 		return helper->help(ct, info, ctinfo, hooknum, pskb);
-	} else return NF_ACCEPT;
+	} else {
+		return NF_ACCEPT;
+	}
 }
 
 /* 回来的ICMP报文需要做NAT */
@@ -681,6 +686,7 @@ icmp_reply_translation(struct sk_buff *skb,
 	struct iphdr *iph = skb->nh.iph;
 	struct icmphdr *hdr = (struct icmphdr *)((u_int32_t *)iph + iph->ihl);
 	struct iphdr *inner = (struct iphdr *)(hdr + 1);
+	/* icmp报文数据段长度 */
 	size_t datalen = skb->len - ((void *)inner - (void *)iph);
 	unsigned int i;
 	struct ip_nat_info *info = &conntrack->nat.info;
@@ -705,12 +711,18 @@ icmp_reply_translation(struct sk_buff *skb,
 		DEBUGP("icmp_reply: manip %u dir %s hook %u\n",
 		       i, info->manips[i].direction == IP_CT_DIR_ORIGINAL ?
 		       "ORIG" : "REPLY", info->manips[i].hooknum);
+		/*
+		 * 映射内部报文与正常的报文映射是一样的，但是内部的报文没有sip、dip与源
+		 * 方向一致，没有调换.
+		 */
 		/* Mapping the inner packet is just like a normal
 		   packet in the other direction, except it was never
 		   src/dst reversed, so where we would normally apply
 		   a dst manip, we reply a src, and vice versa. */
-		if (info->manips[i].direction != dir
-		    && info->manips[i].hooknum == opposite_hook[hooknum]) {
+		/*
+		 * TODO: 这里为什么是 != dir
+		 */
+		if (info->manips[i].direction != dir && info->manips[i].hooknum == opposite_hook[hooknum]) {
 			DEBUGP("icmp_reply: inner %s -> %u.%u.%u.%u %u\n",
 			       info->manips[i].maniptype == IP_NAT_MANIP_SRC
 			       ? "DST" : "SRC",
@@ -721,12 +733,9 @@ icmp_reply_translation(struct sk_buff *skb,
 				  &info->manips[i].manip,
 				  !info->manips[i].maniptype);
 		}
-		/* Outer packet needs to have IP header NATed like
-                   it's a reply. */
-		else if (info->manips[i].direction != dir
-			 && info->manips[i].hooknum == hooknum) {
-			/* Use mapping to map outer packet: 0 give no
-                           per-proto mapping */
+		/* Outer packet needs to have IP header NATed like it's a reply. */
+		else if (info->manips[i].direction != dir && info->manips[i].hooknum == hooknum) {
+			/* Use mapping to map outer packet: 0 give no per-proto mapping */
 			DEBUGP("icmp_reply: outer %s %u.%u.%u.%u\n",
 			       info->manips[i].maniptype == IP_NAT_MANIP_SRC
 			       ? "SRC" : "DST",
@@ -738,12 +747,15 @@ icmp_reply_translation(struct sk_buff *skb,
 	}
 	READ_UNLOCK(&ip_nat_lock);
 
-	/* Since we mangled inside ICMP packet, recalculate its
-	   checksum from scratch.  (Hence the handling of incorrect
-	   checksums in conntrack, so we don't accidentally fix one.)  */
+	/*
+	 * 因为修改了ICMP报文的内部，需要重新计算校验和.
+	 */
+	/*
+	 * Since we mangled inside ICMP packet, recalculate its checksum from scratch.
+	 * (Hence the handling of incorrect checksums in conntrack, so we don't accidentally fix one.)
+	 */
 	hdr->checksum = 0;
-	hdr->checksum = ip_compute_csum((unsigned char *)hdr,
-					sizeof(*hdr) + datalen);
+	hdr->checksum = ip_compute_csum((unsigned char *)hdr, sizeof(*hdr) + datalen);
 }
 
 int ip_nat_helper_register(struct ip_nat_helper *me)

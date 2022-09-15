@@ -93,6 +93,7 @@ tcp_manip_pkt(struct iphdr *iph, size_t len,
 		oldip = iph->daddr;
 		portptr = &hdr->dest;
 	}
+	/* 修改校验和 */
 	hdr->check = ip_nat_cheat_check(~oldip, manip->ip,
 					ip_nat_cheat_check(*portptr ^ 0xFFFF,
 							   manip->u.tcp.port,

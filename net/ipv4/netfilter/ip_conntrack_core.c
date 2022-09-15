@@ -91,6 +91,7 @@ static inline void ip_conntrack_put(struct ip_conntrack *ct)
 	nf_conntrack_put(&ct->infos[0]);
 }
 
+/* 链接跟踪hash计算函数 */
 static inline u_int32_t
 hash_conntrack(const struct ip_conntrack_tuple *tuple)
 {
@@ -146,11 +147,14 @@ invert_tuple(struct ip_conntrack_tuple *inverse,
 	     const struct ip_conntrack_tuple *orig,
 	     const struct ip_conntrack_protocol *protocol)
 {
+	/* 交换IP */
 	inverse->src.ip = orig->dst.ip;
 	inverse->src.pad = 0;
 	inverse->dst.ip = orig->src.ip;
+	/* 填写协议号 */
 	inverse->dst.protonum = orig->dst.protonum;
 
+	/* 交换端口号 */
 	return protocol->invert_tuple(inverse, orig);
 }
 
@@ -574,14 +578,14 @@ int ip_conntrack_expect_related(struct ip_conntrack *related_to,
 	return 0;
 }
 
-/* Alter reply tuple (maybe alter helper).  If it's already taken,
-   return 0 and don't do alteration. */
+/* Alter reply tuple (maybe alter helper).  If it's already taken, return 0 and don't do alteration. */
 int ip_conntrack_alter_reply(struct ip_conntrack *conntrack,
 			     const struct ip_conntrack_tuple *newreply)
 {
 	unsigned int newindex = hash_conntrack(newreply);
 
 	WRITE_LOCK(&ip_conntrack_lock);
+	/* 新的REPLY五元组必须是唯一的，此处查找，如果不为空则返回 */
 	if (__ip_conntrack_find(newreply, conntrack)) {
 		WRITE_UNLOCK(&ip_conntrack_lock);
 		return 0;
@@ -589,16 +593,13 @@ int ip_conntrack_alter_reply(struct ip_conntrack *conntrack,
 	DEBUGP("Altering reply tuple of %p to ", conntrack);
 	DUMP_TUPLE(newreply);
 
-	LIST_DELETE(&ip_conntrack_hash
-		    [hash_conntrack(&conntrack->tuplehash[IP_CT_DIR_REPLY]
-				    .tuple)],
+	LIST_DELETE(&ip_conntrack_hash[hash_conntrack(&conntrack->tuplehash[IP_CT_DIR_REPLY].tuple)],
 		    &conntrack->tuplehash[IP_CT_DIR_REPLY]);
+	/* 修改REPLY方向的五元组 */
 	conntrack->tuplehash[IP_CT_DIR_REPLY].tuple = *newreply;
-	list_prepend(&ip_conntrack_hash[newindex],
-		     &conntrack->tuplehash[IP_CT_DIR_REPLY]);
-	conntrack->helper = LIST_FIND(&helpers, helper_cmp,
-				      struct ip_conntrack_helper *,
-				      newreply);
+	/* 挂载新的五元组到hash表中 */
+	list_prepend(&ip_conntrack_hash[newindex], &conntrack->tuplehash[IP_CT_DIR_REPLY]);
+	conntrack->helper = LIST_FIND(&helpers, helper_cmp, struct ip_conntrack_helper *, newreply);
 	WRITE_UNLOCK(&ip_conntrack_lock);
 	return 1;
 }

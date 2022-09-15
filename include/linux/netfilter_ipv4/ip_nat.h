@@ -79,7 +79,7 @@ struct ip_nat_info_manip
 	/* Manipulations to occur at each conntrack in this dirn. */
 	struct ip_conntrack_manip manip;
 };
-	
+
 /* The structure embedded in the conntrack structure. */
 struct ip_nat_info
 {

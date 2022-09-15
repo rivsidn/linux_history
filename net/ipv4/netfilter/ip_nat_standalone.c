@@ -79,7 +79,18 @@ ip_nat_fn(unsigned int hooknum,
 	if (!ct)
 		return NF_DROP;
 
+	/*
+	 * 所有链接跟踪状态：
+	 * IP_CT_NEW
+	 * IP_CT_RELATED
+	 * IP_CT_RELATED + IP_CT_IS_REPLY
+	 * IP_CT_ESTABLISHED
+	 * IP_CT_ESTABLISHED + IP_CT_IS_REPLY
+	 */
 	switch (ctinfo) {
+	/*
+	 * 子链接或者是回复的ICMP报文.
+	 */
 	case IP_CT_RELATED:
 	case IP_CT_RELATED+IP_CT_IS_REPLY:
 		if ((*pskb)->nh.iph->protocol == IPPROTO_ICMP) {
@@ -103,23 +114,22 @@ ip_nat_fn(unsigned int hooknum,
 				return ret;
 			}
 
+			/* 放到hash表中 */
 			if (in_hashes) {
 				IP_NF_ASSERT(info->bysource.conntrack);
 				replace_in_hashes(ct, info);
 			} else {
 				place_in_hashes(ct, info);
 			}
-		} else
-			DEBUGP("Already setup manip %s for ct %p\n",
-			       maniptype == IP_NAT_MANIP_SRC ? "SRC" : "DST",
-			       ct);
+		} else {
+			DEBUGP("Already setup manip %s for ct %p\n", maniptype == IP_NAT_MANIP_SRC ? "SRC" : "DST", ct);
+		}
 		WRITE_UNLOCK(&ip_nat_lock);
 		break;
 
 	default:
 		/* ESTABLISHED */
-		IP_NF_ASSERT(ctinfo == IP_CT_ESTABLISHED
-			     || ctinfo == (IP_CT_ESTABLISHED+IP_CT_IS_REPLY));
+		IP_NF_ASSERT(ctinfo == IP_CT_ESTABLISHED || ctinfo == (IP_CT_ESTABLISHED+IP_CT_IS_REPLY));
 		info = &ct->nat.info;
 	}
 
