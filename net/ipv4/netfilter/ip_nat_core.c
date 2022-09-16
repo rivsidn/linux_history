@@ -722,6 +722,32 @@ icmp_reply_translation(struct sk_buff *skb,
 		/*
 		 * 这里的 info->mapips[i].direction != dir 是错误的，正确的写法应该是
 		 * info->mapips[i].direction == dir，该问题在 2.4.0-test2pre5 得到了修改.
+		 *
+		 * 举例说明，如下所示，此时PC1通过设备访问PC2，中间经过了SNAT.
+		 *                                        2.2.2.1                2.2.2.2
+		 * +---+                    +---------------+                     +---+
+		 * |PC1+------------------->|     设备      +-------------------->|PC2|
+		 * +---+                    +---------------+SNAT                 +---+
+		 * 1.1.1.2              1.1.1.1
+		 *
+		 * 此时info->manips[] 应该由两部分组成：
+		 * {
+		 * 	{
+		 * 		IP_CT_DIR_ORIGINAL,
+		 * 		POST_ROUTING,
+		 * 		IP_NAT_MANIP_SRC,
+		 * 		2.2.2.1(修改后IP)
+		 * 	},
+		 * 	{
+		 * 		IP_CT_DIR_REPLY,
+		 * 		PRE_ROUTING,
+		 * 		IP_NAT_MANIP_DST,
+		 * 		1.1.1.2(修改前IP)
+		 * 	}
+		 * }
+		 * 从PC2回来的ICMP报文，无论是内部IP头还是外部IP头，必定都是做过NAT的，都需要修改成
+		 * 1.1.1.2(修改前IP)，此时方向为 IP_CT_DIR_REPLY ，需要获取1.1.1.2(修改前IP)，所以需
+		 * 要info->mapips[i].direction == dir.
 		 */
 		if (info->manips[i].direction != dir && info->manips[i].hooknum == opposite_hook[hooknum]) {
 			DEBUGP("icmp_reply: inner %s -> %u.%u.%u.%u %u\n",
