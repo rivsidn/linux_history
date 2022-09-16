@@ -102,6 +102,7 @@ ip_nat_fn(unsigned int hooknum,
 	case IP_CT_NEW:
 		info = &ct->nat.info;
 
+		/* 获取锁 */
 		WRITE_LOCK(&ip_nat_lock);
 		/* Seen it before?  This can happen for loopback, retrans, or local packets.. */
 		if (!(info->initialized & (1 << maniptype))) {

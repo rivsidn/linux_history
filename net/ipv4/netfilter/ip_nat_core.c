@@ -137,6 +137,7 @@ in_range(const struct ip_conntrack_tuple *tuple,
 {
 	unsigned int i;
 	struct ip_nat_protocol *proto = find_nat_proto(tuple->dst.protonum);
+	/* 构成一个新的五元组，如果这个新的五元组在mr 范围内，则使用这个新的五元组. */
 	struct ip_conntrack_tuple newtuple = { *manip, tuple->dst };
 
 	/* If we are allowed to map IPs, then we must be in the range specified, otherwise we must be unchanged. */
@@ -163,6 +164,7 @@ src_cmp(const struct ip_nat_hash *i,
 	const struct ip_conntrack_tuple *tuple,
 	const struct ip_nat_multi_range *mr)
 {
+	/* TODO: 没明白这里的比较是什么意思？ */
 	return (i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == tuple->dst.protonum &&
 		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.ip == tuple->src.ip &&
 		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all == tuple->src.u.all &&
@@ -326,8 +328,8 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 
 /*
  * tuple	输出参数
- * orig_tuple	输入参数
- * mrr		输入参数
+ * orig_tuple	输入参数，ORIGINAL方向的五元组
+ * mrr		输入参数，NAT范围
  * conntrack	输入参数
  * hooknum	输入参数
  *
@@ -438,10 +440,11 @@ ip_nat_setup_info(struct ip_conntrack *conntrack,
 		     || hooknum == NF_IP_LOCAL_OUT);
 	IP_NF_ASSERT(info->num_manips < IP_NAT_MAX_MANIPS);
 
-	/* What we've got will look like inverse of reply. Normally
-	   this is what is in the conntrack, except for prior
-	   manipulations (future optimization: if num_manips == 0,
-	   orig_tp = conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple) */
+	/*
+	 * What we've got will look like inverse of reply.
+	 * Normally this is what is in the conntrack, except for prior manipulations (future optimization:
+	 * if num_manips == 0, orig_tp = conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple)
+	 */
 	invert_tuplepr(&orig_tp, &conntrack->tuplehash[IP_CT_DIR_REPLY].tuple);
 
 #if 0
