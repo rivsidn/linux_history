@@ -19,8 +19,11 @@ enum ip_nat_manip_type
 #define SO_ORIGINAL_DST 80
 #endif
 
+/* 范围中包含多个IP地址 */
 #define IP_NAT_RANGE_MAP_IPS 1
+/* 是否包含协议端口号 */
 #define IP_NAT_RANGE_PROTO_SPECIFIED 2
+/* 内部标识位，表示在搜索过程已经排除 */
 /* Used internally by get_unique_tuple(). */
 #define IP_NAT_RANGE_FULL 4
 

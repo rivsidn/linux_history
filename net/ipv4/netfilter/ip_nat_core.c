@@ -158,13 +158,12 @@ in_range(const struct ip_conntrack_tuple *tuple,
 	return 0;
 }
 
-/* 遍历hash表中链接跟踪，依次比较，满足条件则返回 */
 static inline int
 src_cmp(const struct ip_nat_hash *i,
 	const struct ip_conntrack_tuple *tuple,
 	const struct ip_nat_multi_range *mr)
 {
-	/* TODO: 没明白这里的比较是什么意思？ */
+	/* 相同的源IP、协议类型、端口号 */
 	return (i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.protonum == tuple->dst.protonum &&
 		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.ip == tuple->src.ip &&
 		i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all == tuple->src.u.all &&
@@ -182,6 +181,10 @@ find_appropriate_src(const struct ip_conntrack_tuple *tuple,
 
 	MUST_BE_READ_LOCKED(&ip_nat_lock);
 	i = LIST_FIND(&bysource[h], src_cmp, struct ip_nat_hash *, tuple, mr);
+	/*
+	 * 这部分代码不对，应该翻转REPLY方向的五元组，然后返回，此处有问题.
+	 * 该问题在v2.6.10 修复.
+	 */
 	if (i)
 		return &i->conntrack->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src;
 	else
@@ -264,6 +267,7 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 	} best = { NULL,  0xFFFFFFFF };
 	u_int32_t *var_ipp, *other_ipp, saved_ip;
 
+	/* 只改变了IP地址 */
 	if (HOOK2MANIP(hooknum) == IP_NAT_MANIP_SRC) {
 		var_ipp = &tuple->src.ip;	//sip
 		saved_ip = tuple->dst.ip;	//dip
@@ -283,6 +287,7 @@ find_best_ips_proto(struct ip_conntrack_tuple *tuple,
 			continue;
 		}
 
+		/* 映射范围包含多个IP地址 */
 		if (mr->range[i].flags & IP_NAT_RANGE_MAP_IPS) {
 			minip = mr->range[i].min_ip;
 			maxip = mr->range[i].max_ip;
@@ -364,8 +369,7 @@ get_unique_tuple(struct ip_conntrack_tuple *tuple,
 		manip = find_appropriate_src(orig_tuple, mr);
 		if (manip) {
 			/* Apply same source manipulation. */
-			*tuple = ((struct ip_conntrack_tuple)
-				  { *manip, orig_tuple->dst });
+			*tuple = ((struct ip_conntrack_tuple) { *manip, orig_tuple->dst });
 			DEBUGP("get_unique_tuple: Found current src map\n");
 			return 1;
 		}
@@ -414,8 +418,10 @@ helper_cmp(const struct ip_nat_helper *helper,
 	   u_int16_t protocol,
 	   u_int16_t protocol_dst)
 {
-	return (protocol == helper->protocol
-		&& protocol_dst == helper->protocol_dst);
+	/*
+	 * 比较协议类型和目的端口号
+	 */
+	return (protocol == helper->protocol && protocol_dst == helper->protocol_dst);
 }
 
 /* Where to manip the reply packets (will be reverse manip). */
