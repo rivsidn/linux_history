@@ -222,9 +222,7 @@ delete_sack(struct sk_buff *skb, struct tcphdr *tcph)
 	/* Must be within TCP header, and valid SACK perm. */
 	if (i + opt[i+1] <= tcph->doff*4 && opt[i+1] == 2) {
 		/* Replace with NOPs. */
-		tcph->check
-			= ip_nat_cheat_check(*((u_int16_t *)(opt + i))^0xFFFF,
-					     0, tcph->check);
+		tcph->check = ip_nat_cheat_check(*((u_int16_t *)(opt + i))^0xFFFF, 0, tcph->check);
 		opt[i] = opt[i+1] = 0;
 	}
 	else DEBUGP("Something wrong with SACK_PERM.\n");
@@ -246,8 +244,7 @@ static int ftp_data_fixup(const struct ip_ct_ftp *ct_ftp_info,
 	       ct_ftp_info->seq, ct_ftp_info->len,
 	       ntohl(tcph->seq), datalen);
 
-	/* Change address inside packet to match way we're mapping
-	   this connection. */
+	/* Change address inside packet to match way we're mapping this connection. */
 	if (ct_ftp_info->ftptype == IP_CT_FTP_PASV) {
 		/* PASV response: must be where client thinks server
 		   is */
@@ -266,9 +263,11 @@ static int ftp_data_fixup(const struct ip_ct_ftp *ct_ftp_info,
 
 	/* Alter conntrack's expectations. */
 
-	/* We can read expect here without conntrack lock, since it's
-	   only set in ip_conntrack_ftp, with ip_ftp_lock held
-	   writable */
+	/*
+	 * We can read expect here without conntrack lock,
+	 * since it's only set in ip_conntrack_ftp,
+	 * with ip_ftp_lock held writable
+	 */
 	t = ct->expected.tuple;
 	t.dst.ip = newip;
 	ip_conntrack_expect_related(ct, &t);
@@ -297,11 +296,10 @@ static unsigned int help(struct ip_conntrack *ct,
 	if (tcph->syn && !tcph->ack)
 		delete_sack(*pskb, tcph);
 
-	/* Only mangle things once: original direction in POST_ROUTING
-	   and reply direction on PRE_ROUTING. */
+	/* Only mangle things once: original direction in POST_ROUTING and reply direction on PRE_ROUTING. */
 	dir = CTINFO2DIR(ctinfo);
-	if (!((hooknum == NF_IP_POST_ROUTING && dir == IP_CT_DIR_ORIGINAL)
-	      || (hooknum == NF_IP_PRE_ROUTING && dir == IP_CT_DIR_REPLY))) {
+	if (!((hooknum == NF_IP_POST_ROUTING && dir == IP_CT_DIR_ORIGINAL) ||
+	      (hooknum == NF_IP_PRE_ROUTING && dir == IP_CT_DIR_REPLY))) {
 		DEBUGP("nat_ftp: Not touching dir %s at hook %s\n",
 		       dir == IP_CT_DIR_ORIGINAL ? "ORIG" : "REPLY",
 		       hooknum == NF_IP_POST_ROUTING ? "POSTROUTING"

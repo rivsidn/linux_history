@@ -570,8 +570,7 @@ int ip_conntrack_expect_related(struct ip_conntrack *related_to,
 		related_to->expected.expectant = related_to;
 	} else {
 		IP_NF_ASSERT(list_inlist(&expect_list, &related_to->expected));
-		IP_NF_ASSERT(related_to->expected.expectant
-				    == related_to);
+		IP_NF_ASSERT(related_to->expected.expectant == related_to);
 	}
 	WRITE_UNLOCK(&ip_conntrack_lock);
 
