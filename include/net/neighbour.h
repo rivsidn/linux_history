@@ -52,6 +52,9 @@
 #define NUD_VALID	(NUD_PERMANENT|NUD_NOARP|NUD_REACHABLE|NUD_PROBE|NUD_STALE|NUD_DELAY)
 #define NUD_CONNECTED	(NUD_PERMANENT|NUD_NOARP|NUD_REACHABLE)
 
+/*
+ * reachable_time	超时时间
+ */
 struct neigh_parms
 {
 	struct neigh_parms *next;
@@ -137,6 +140,9 @@ struct pneigh_entry
  *	neighbour table manipulation
  */
 
+/*
+ * last_rand		超时后计算reachable_time随机值
+ */
 
 struct neigh_table
 {
