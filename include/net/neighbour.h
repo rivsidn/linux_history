@@ -53,7 +53,7 @@
 #define NUD_CONNECTED	(NUD_PERMANENT|NUD_NOARP|NUD_REACHABLE)
 
 /*
- * reachable_time	超时时间
+ * reachable_time	邻居表超时时间
  */
 struct neigh_parms
 {

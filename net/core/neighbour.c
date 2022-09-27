@@ -224,11 +224,8 @@ static struct neighbour *neigh_alloc(struct neigh_table *tbl)
 	struct neighbour *n = NULL;
 	unsigned long now = jiffies;
 
-	if (tbl->entries > tbl->gc_thresh3 ||
-	    (tbl->entries > tbl->gc_thresh2 &&
-	     now - tbl->last_flush > 5 * HZ)) {
-		if (!neigh_forced_gc(tbl) &&
-		    tbl->entries > tbl->gc_thresh3)
+	if (tbl->entries > tbl->gc_thresh3 || (tbl->entries > tbl->gc_thresh2 && now - tbl->last_flush > 5 * HZ)) {
+		if (!neigh_forced_gc(tbl) && tbl->entries > tbl->gc_thresh3)
 			goto out;
 	}
 
@@ -275,6 +272,9 @@ struct neighbour *neigh_lookup(struct neigh_table *tbl, const void *pkey,
 	return n;
 }
 
+/*
+ * pkey		ARP时为对端IP地址;
+ */
 struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 			       struct net_device *dev)
 {
@@ -299,8 +299,7 @@ struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 	}
 
 	/* Device specific setup. */
-	if (n->parms->neigh_setup &&
-	    (error = n->parms->neigh_setup(n)) < 0) {
+	if (n->parms->neigh_setup && (error = n->parms->neigh_setup(n)) < 0) {
 		rc = ERR_PTR(error);
 		goto out_neigh_release;
 	}
