@@ -150,8 +150,7 @@ static int neigh_forced_gc(struct neigh_table *tbl)
 
 static int neigh_del_timer(struct neighbour *n)
 {
-	if ((n->nud_state & NUD_IN_TIMER) &&
-	    del_timer(&n->timer)) {
+	if ((n->nud_state & NUD_IN_TIMER) && del_timer(&n->timer)) {
 		neigh_release(n);
 		return 1;
 	}
@@ -254,8 +253,8 @@ out:
 	return n;
 }
 
-struct neighbour *neigh_lookup(struct neigh_table *tbl, const void *pkey,
-			       struct net_device *dev)
+/* 查询ARP表项 */
+struct neighbour *neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev)
 {
 	struct neighbour *n;
 	int key_len = tbl->key_len;
@@ -274,6 +273,8 @@ struct neighbour *neigh_lookup(struct neigh_table *tbl, const void *pkey,
 
 /*
  * pkey		ARP时为对端IP地址;
+ * 
+ * 创建邻居表项，将邻居表项添加到hash表中
  */
 struct neighbour *neigh_create(struct neigh_table *tbl, const void *pkey,
 			       struct net_device *dev)
@@ -471,11 +472,12 @@ void neigh_destroy(struct neighbour *neigh)
 	kmem_cache_free(neigh->tbl->kmem_cachep, neigh);
 }
 
-/* Neighbour state is suspicious;
-   disable fast path.
-
-   Called with write_locked neigh.
+/*
+ * Neighbour state is suspicious; disable fast path.
+ * Called with write_locked neigh.
  */
+
+/* 邻居状态是可疑的，禁止快速路径 */
 static void neigh_suspect(struct neighbour *neigh)
 {
 	struct hh_cache *hh;
@@ -488,11 +490,12 @@ static void neigh_suspect(struct neighbour *neigh)
 		hh->hh_output = neigh->ops->output;
 }
 
-/* Neighbour state is OK;
-   enable fast path.
-
-   Called with write_locked neigh.
+/*
+ * Neighbour state is OK; enable fast path.
+ * Called with write_locked neigh.
  */
+
+/* 邻居状态正常，启动快速模式 */
 static void neigh_connect(struct neighbour *neigh)
 {
 	struct hh_cache *hh;
@@ -518,6 +521,7 @@ static void neigh_connect(struct neighbour *neigh)
    Called with write_locked neigh.
  */
 
+/* 同步状态 */
 static void neigh_sync(struct neighbour *n)
 {
 	unsigned long now = jiffies;
@@ -750,6 +754,7 @@ out_unlock_bh:
 	return rc;
 }
 
+/* 更新二层缓存 */
 static __inline__ void neigh_update_hhs(struct neighbour *neigh)
 {
 	struct hh_cache *hh;
@@ -776,8 +781,7 @@ static __inline__ void neigh_update_hhs(struct neighbour *neigh)
    Caller MUST hold reference count on the entry.
  */
 
-int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
-		 int override, int arp)
+int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new, int override, int arp)
 {
 	u8 old;
 	int err;
@@ -792,6 +796,7 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 	old    = neigh->nud_state;
 	err    = -EPERM;
 
+	/* 如果不是用户配置，且老的状态包含NUD_NOARP、NUD_PERMANENT，则退出 */
 	if (arp && (old & (NUD_NOARP | NUD_PERMANENT)))
 		goto out;
 
@@ -853,8 +858,7 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 		memcpy(&neigh->ha, lladdr, dev->addr_len);
 		neigh_update_hhs(neigh);
 		if (!(new & NUD_CONNECTED))
-			neigh->confirmed = jiffies -
-				      (neigh->parms->base_reachable_time << 1);
+			neigh->confirmed = jiffies - (neigh->parms->base_reachable_time << 1);
 #ifdef CONFIG_ARPD
 		notify = 1;
 #endif
@@ -870,8 +874,7 @@ int neigh_update(struct neighbour *neigh, const u8 *lladdr, u8 new,
 
 		/* Again: avoid dead loop if something went wrong */
 
-		while (neigh->nud_state & NUD_VALID &&
-		       (skb = __skb_dequeue(&neigh->arp_queue)) != NULL) {
+		while (neigh->nud_state & NUD_VALID && (skb = __skb_dequeue(&neigh->arp_queue)) != NULL) {
 			struct neighbour *n1 = neigh;
 			write_unlock_bh(&neigh->lock);
 			/* On shaper/eql skb->dst->neighbour != neigh :( */
@@ -891,12 +894,17 @@ out:
 	return err;
 }
 
+/*
+ * tbl		表
+ * lladdr	对端mac地址
+ * saddr	对端IP地址
+ * dev		本地设备
+ */
 struct neighbour *neigh_event_ns(struct neigh_table *tbl,
 				 u8 *lladdr, void *saddr,
 				 struct net_device *dev)
 {
-	struct neighbour *neigh = __neigh_lookup(tbl, saddr, dev,
-						 lladdr || !dev->addr_len);
+	struct neighbour *neigh = __neigh_lookup(tbl, saddr, dev, lladdr || !dev->addr_len);
 	if (neigh)
 		neigh_update(neigh, lladdr, NUD_STALE, 1, 1);
 	return neigh;

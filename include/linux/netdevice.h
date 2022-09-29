@@ -191,6 +191,7 @@ struct hh_cache
 	int		hh_len;		/* length of header */
 	int		(*hh_output)(struct sk_buff *skb);
 	rwlock_t	hh_lock;
+	/* hh_data 总共16 字节的数据，ethernet就只使用了其中的14 字节，申请16字节是为了对齐 */
 	/* cached hardware header; allow for machine alignment needs.        */
 	unsigned long	hh_data[16/sizeof(unsigned long)];
 };
@@ -379,6 +380,7 @@ struct net_device
 						    struct net_device *dev);
 #define HAVE_NETDEV_POLL
 	int			(*poll) (struct net_device *dev, int *quota);
+	/* 构造二层头函数 */
 	int			(*hard_header) (struct sk_buff *skb,
 						struct net_device *dev,
 						unsigned short type,

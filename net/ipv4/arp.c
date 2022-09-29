@@ -125,6 +125,10 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb);
 static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb);
 static void parp_redo(struct sk_buff *skb);
 
+/*
+ * 对于一款硬件设备，邻居表项指向的neigh_ops{}是固定的;
+ * 不同的硬件设备可能指向不同的neigh_ops{}。
+ */
 static struct neigh_ops arp_generic_ops = {
 	.family =		AF_INET,
 	.solicit =		arp_solicit,
