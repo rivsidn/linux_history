@@ -53,6 +53,7 @@
 #define NUD_CONNECTED	(NUD_PERMANENT|NUD_NOARP|NUD_REACHABLE)
 
 /*
+ * gc_staletime		stale状态垃圾回收时间
  * reachable_time	邻居表超时时间
  */
 struct neigh_parms
@@ -89,6 +90,9 @@ struct neigh_statistics
 	unsigned long rcv_probes_ucast;
 };
 
+/*
+ * dead		1 表示邻居表项不在ARP表中，0 表示表项在ARP表
+ */
 struct neighbour
 {
 	struct neighbour	*next;
@@ -141,6 +145,7 @@ struct pneigh_entry
  */
 
 /*
+ * last_flush		最后一次刷新时间，也就是表项垃圾回收扫描时间
  * last_rand		超时后计算reachable_time随机值
  */
 
@@ -261,6 +266,8 @@ static inline int neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 
 /*
  * pkey		ARP时为对端IP地址
+ *
+ * 查找邻居表项，如果需要创建则创建新的邻居表项。
  */
 static inline struct neighbour *
 __neigh_lookup(struct neigh_table *tbl, const void *pkey, struct net_device *dev, int creat)

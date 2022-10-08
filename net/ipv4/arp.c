@@ -398,6 +398,9 @@ static int arp_set_predefined(int addr_hint, unsigned char * haddr, u32 paddr, s
 }
 
 
+/*
+ * haddr	是输出参数
+ */
 int arp_find(unsigned char *haddr, struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -412,6 +415,7 @@ int arp_find(unsigned char *haddr, struct sk_buff *skb)
 
 	paddr = ((struct rtable*)skb->dst)->rt_gateway;
 
+	/* 预设haddr */
 	if (arp_set_predefined(inet_addr_type(paddr), haddr, paddr, dev))
 		return 0;
 
