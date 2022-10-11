@@ -320,6 +320,7 @@ static void arp_error_report(struct neighbour *neigh, struct sk_buff *skb)
 	kfree_skb(skb);
 }
 
+/* 发送ARP请求 */
 static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 {
 	u32 saddr;
@@ -333,6 +334,7 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 	else
 		saddr = inet_select_addr(dev, target, RT_SCOPE_LINK);
 
+	/* 首先尝试发送单播数据包，超过次数限制之后才发送广播包 */
 	if ((probes -= neigh->parms->ucast_probes) < 0) {
 		if (!(neigh->nud_state&NUD_VALID))
 			printk(KERN_DEBUG "trying to ucast probe in NUD_INVALID\n");
@@ -345,6 +347,10 @@ static void arp_solicit(struct neighbour *neigh, struct sk_buff *skb)
 		return;
 	}
 
+	/* 
+	 * 参数依次是: ARP请求、ARP协议类型、目的IP、设备、源IP、
+	 * 目的MAC、源MAC、内部目的MAC.
+	 */
 	arp_send(ARPOP_REQUEST, ETH_P_ARP, target, dev, saddr,
 		 dst_ha, dev->dev_addr, NULL);
 	if (dst_ha)
@@ -496,6 +502,9 @@ static inline int arp_fwd_proxy(struct in_device *in_dev, struct rtable *rt)
  *	message.
  */
 
+/*
+ *	dest_hw、target_hw 区别是，dest_hw 用于外部以太头，target_hw 用于报文内部
+ */
 void arp_send(int type, int ptype, u32 dest_ip, 
 	      struct net_device *dev, u32 src_ip, 
 	      unsigned char *dest_hw, unsigned char *src_hw,
@@ -588,16 +597,17 @@ void arp_send(int type, int ptype, u32 dest_ip,
 
 	arp_ptr=(unsigned char *)(arp+1);
 
-	memcpy(arp_ptr, src_hw, dev->addr_len);
+	memcpy(arp_ptr, src_hw, dev->addr_len);		//报文内部源MAC
 	arp_ptr+=dev->addr_len;
-	memcpy(arp_ptr, &src_ip,4);
+	memcpy(arp_ptr, &src_ip,4);			//报文内部源IP
 	arp_ptr+=4;
+	/* 报文内部目的MAC */
 	if (target_hw != NULL)
 		memcpy(arp_ptr, target_hw, dev->addr_len);
 	else
 		memset(arp_ptr, 0, dev->addr_len);
 	arp_ptr+=dev->addr_len;
-	memcpy(arp_ptr, &dest_ip, 4);
+	memcpy(arp_ptr, &dest_ip, 4);			//报文内部目的IP
 
 	/* Send it off, maybe filter it using firewalling first.  */
 	NF_HOOK(NF_ARP, NF_ARP_OUT, skb, NULL, dev, dev_queue_xmit);
@@ -799,6 +809,7 @@ int arp_process(struct sk_buff *skb)
 		n = __neigh_lookup(&arp_tbl, &sip, dev, -1);
 #endif
 
+	/* 收到ARP REPLY 时候更新状态 */
 	if (n) {
 		int state = NUD_REACHABLE;
 		int override = 0;

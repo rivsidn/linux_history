@@ -55,6 +55,7 @@
 /*
  * gc_staletime		stale状态垃圾回收时间
  * reachable_time	邻居表超时时间
+ * delay_probe_time	从delay状态到probe状态的等待时间
  */
 struct neigh_parms
 {

@@ -183,6 +183,7 @@ static inline int ip_finish_output2(struct sk_buff *skb)
 	nf_debug_ip_finish_output2(skb);
 #endif /*CONFIG_NETFILTER_DEBUG*/
 
+	/* 如果hh 存在，则直接调用hh->hh_output()，如果不存在则调用dst->neighbour->output() */
 	if (hh) {
 		read_lock_bh(&hh->hh_lock);
   		memcpy(skb->data - 16, hh->hh_data, 16);
