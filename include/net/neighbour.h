@@ -260,6 +260,11 @@ static inline int neigh_is_valid(struct neighbour *neigh)
 static inline int neigh_event_send(struct neighbour *neigh, struct sk_buff *skb)
 {
 	neigh->used = jiffies;
+	/*
+	 * 参见状态转换，NUD_STALE-> NUD_DELAY->NUD_PROBE 状态，此处的意思是
+	 * 这两种状态的邻居表项可以跟NUD_CONNECTED一样为报文提供二层地址。
+	 * NUD_STALE 需要在__neigh_event_send() 中做进一步处理。
+	 */
 	if (!(neigh->nud_state&(NUD_CONNECTED|NUD_DELAY|NUD_PROBE)))
 		return __neigh_event_send(neigh, skb);
 	return 0;
