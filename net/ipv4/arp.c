@@ -822,11 +822,8 @@ int arp_process(struct sk_buff *skb)
 		if (jiffies - n->updated >= n->parms->locktime)
 			override = 1;
 
-		/* Broadcast replies and request packets
-		   do not assert neighbour reachability.
-		 */
-		if (arp->ar_op != htons(ARPOP_REPLY) ||
-		    skb->pkt_type != PACKET_HOST)
+		/* Broadcast replies and request packets do not assert neighbour reachability. */
+		if (arp->ar_op != htons(ARPOP_REPLY) || skb->pkt_type != PACKET_HOST)
 			state = NUD_STALE;
 		neigh_update(n, sha, state, override, 1);
 		neigh_release(n);

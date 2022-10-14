@@ -533,7 +533,7 @@ static void neigh_connect(struct neighbour *neigh)
    Called with write_locked neigh.
  */
 
-/* 同步状态 */
+/* 定时器转换状态并不是实时的，当需要确切的邻居表项状态的时候需要调用该函数 */
 static void neigh_sync(struct neighbour *n)
 {
 	unsigned long now = jiffies;
